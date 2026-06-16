@@ -1,0 +1,85 @@
+/* Custom CSS for Invoice Extractor */
+
+/* Main container */
+.stApp {
+    background-color: #f8f9fa;
+}
+
+/* Headers */
+h1 {
+    color: #1f77b4;
+    font-weight: 600;
+}
+
+/* Metric cards */
+.css-1xarl3l {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+    padding: 15px;
+}
+
+/* Dataframe styling */
+.dataframe {
+    font-size: 14px;
+}
+
+.dataframe th {
+    background-color: #1f77b4;
+    color: white;
+    padding: 10px;
+}
+
+.dataframe td {
+    padding: 8px;
+}
+
+/* Button styling */
+.stButton button {
+    background-color: #1f77b4;
+    color: white;
+    border-radius: 5px;
+    transition: all 0.3s;
+}
+
+.stButton button:hover {
+    background-color: #135e8a;
+    transform: translateY(-2px);
+}
+
+/* Sidebar styling */
+.css-1d391kg {
+    background-color: #f0f2f6;
+}
+
+/* Tabs styling */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    border-radius: 4px 4px 0 0;
+    padding: 8px 16px;
+}
+
+@media (max-width: 768px) {
+    .stTabs [data-baseweb="tab"] {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+
+    .css-1xarl3l {
+        padding: 8px;
+    }
+}
+
+.stAlert {
+    border-radius: 8px;
+}
+
+.stDownloadButton button {
+    background-color: #2ca02c;
+}
+
+.stDownloadButton button:hover {
+    background-color: #1f7a1f;
+}
