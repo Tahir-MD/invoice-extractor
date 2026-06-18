@@ -123,6 +123,7 @@ st.markdown("""
         font-size: 14px;
         margin: 10px 0 8px 0;
         line-height: 1.6;
+        white-space: pre-line;
     }
     .rec-action {
         font-size: 13px;
@@ -175,24 +176,6 @@ st.markdown("""
         color: #555;
     }
 
-    /* Download Button */
-    .download-btn {
-        background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
-        color: white;
-        padding: 12px 30px;
-        border-radius: 8px;
-        border: none;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s;
-        text-decoration: none;
-        display: inline-block;
-    }
-    .download-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(26, 26, 46, 0.3);
-    }
-
     /* Responsive */
     @media (max-width: 768px) {
         .main-header h1 { font-size: 24px; }
@@ -229,6 +212,374 @@ if 'data_loaded' not in st.session_state:
     st.session_state.data_loaded = False
 if 'recommendations' not in st.session_state:
     st.session_state.recommendations = []
+
+# ============================================================
+# RECOMMENDATION ENGINE
+# ============================================================
+def generate_business_recommendations(df):
+    """
+    Generate comprehensive business recommendations
+    based on invoice data analysis
+    """
+    recommendations = []
+
+    # Calculate key metrics
+    total_revenue = df['amount'].sum()
+    avg_invoice = df['amount'].mean()
+    total_invoices = len(df)
+
+    # ============================================================
+    # 1. REVENUE & SALES OPTIMIZATION
+    # ============================================================
+
+    if 'email' in df.columns:
+        revenue_per_customer = df.groupby('email')['amount'].sum()
+        unique_customers = len(revenue_per_customer)
+        avg_revenue_per_customer = revenue_per_customer.mean()
+        top_customers = revenue_per_customer.nlargest(10)
+        top_customer_share = top_customers.sum() / total_revenue * 100 if total_revenue > 0 else 0
+
+        if top_customer_share > 50:
+            recommendations.append({
+                'category': '💰 Revenue Optimization',
+                'title': 'High Customer Concentration Risk',
+                'description': f'Top 10 customers contribute {top_customer_share:.1f}% of total revenue (${top_customers.sum():,.2f}). This creates dependency risk. Diversify your customer base through targeted acquisition campaigns.',
+                'priority': 'high',
+                'action': 'Implement customer acquisition strategy',
+                'icon': '🎯'
+            })
+        else:
+            recommendations.append({
+                'category': '💰 Revenue Optimization',
+                'title': 'Healthy Customer Distribution',
+                'description': f'Revenue is well-distributed across {unique_customers} customers. Average revenue per customer is ${avg_revenue_per_customer:.2f}. Consider upselling to mid-tier customers to increase this metric.',
+                'priority': 'medium',
+                'action': 'Launch upsell campaigns',
+                'icon': '📈'
+            })
+
+    # ============================================================
+    # 2. PRODUCT PERFORMANCE
+    # ============================================================
+
+    if 'product_id' in df.columns:
+        product_revenue = df.groupby('product_id')['amount'].sum()
+        top_products = product_revenue.nlargest(5)
+        bottom_products = product_revenue.nsmallest(5)
+        top_product_share = top_products.sum() / total_revenue * 100 if total_revenue > 0 else 0
+        unique_products = len(product_revenue)
+
+        if len(top_products) > 0:
+            recommendations.append({
+                'category': '🏷️ Product Strategy',
+                'title': 'Star Products Identification',
+                'description': f'Top 5 products generate {top_product_share:.1f}% of revenue (${top_products.sum():,.2f}). These are your star performers. Increase inventory and marketing for these products.',
+                'priority': 'high',
+                'action': 'Invest in star products',
+                'icon': '⭐'
+            })
+
+        if len(bottom_products) > 0 and bottom_products.sum() > 0:
+            recommendations.append({
+                'category': '🏷️ Product Strategy',
+                'title': 'Underperforming Products Review',
+                'description': f'Bottom 5 products generate only ${bottom_products.sum():.2f} in revenue. Consider discontinuation, rebranding, or bundle offers with top products.',
+                'priority': 'medium',
+                'action': 'Review underperforming products',
+                'icon': '📉'
+            })
+
+        if unique_products >= 3:
+            recommendations.append({
+                'category': '🏷️ Product Strategy',
+                'title': 'Product Bundling Opportunity',
+                'description': f'With {unique_products} products in your portfolio, create strategic bundles combining popular products with complementary items. This can increase average order value by 15-30%.',
+                'priority': 'medium',
+                'action': 'Create product bundles',
+                'icon': '📦'
+            })
+
+    # ============================================================
+    # 3. CUSTOMER INSIGHTS
+    # ============================================================
+
+    if 'email' in df.columns:
+        customer_spending = df.groupby('email')['amount'].sum()
+        unique_customers = len(customer_spending)
+
+        if unique_customers > 0:
+            segments = pd.cut(
+                customer_spending,
+                bins=[0, 100, 500, 1000, float('inf')],
+                labels=['Bronze (<$100)', 'Silver ($100-$500)',
+                       'Gold ($500-$1000)', 'Platinum ($1000+)']
+            )
+            segment_counts = segments.value_counts()
+
+            seg_text = []
+            for seg, count in segment_counts.items():
+                emoji = {'Bronze (<$100)': '🥉', 'Silver ($100-$500)': '🥈',
+                        'Gold ($500-$1000)': '🥇', 'Platinum ($1000+)': '💎'}.get(seg, '📊')
+                seg_text.append(f"{emoji} {seg}: {count} customers")
+
+            recommendations.append({
+                'category': '👥 Customer Segmentation',
+                'title': 'Customer Value Distribution',
+                'description': '\n'.join(seg_text) + f'\n\n**Action:** Create targeted marketing campaigns for each segment. Focus on moving Silver to Gold and Gold to Platinum.',
+                'priority': 'high',
+                'action': 'Implement segment-specific marketing',
+                'icon': '👥'
+            })
+
+        # Loyalty program
+        if segment_counts.get('Gold ($500-$1000)', 0) > 0 or segment_counts.get('Platinum ($1000+)', 0) > 0:
+            gold_platinum = segment_counts.get('Gold ($500-$1000)', 0) + segment_counts.get('Platinum ($1000+)', 0)
+            recommendations.append({
+                'category': '👥 Customer Retention',
+                'title': 'Loyalty Program Implementation',
+                'description': f'You have {gold_platinum} high-value customers (Gold + Platinum). Implement a tiered loyalty program with exclusive benefits to retain these valuable customers.',
+                'priority': 'high',
+                'action': 'Launch loyalty program',
+                'icon': '💎'
+            })
+
+        # Repeat customer analysis
+        order_counts = df.groupby('email').size()
+        repeat_customers = (order_counts > 1).sum()
+        repeat_rate = repeat_customers / unique_customers * 100 if unique_customers > 0 else 0
+
+        if repeat_rate < 30:
+            recommendations.append({
+                'category': '👥 Customer Retention',
+                'title': 'Low Repeat Customer Rate',
+                'description': f'Only {repeat_rate:.1f}% of customers are repeat buyers. Implement post-purchase email campaigns, subscription options, and referral programs.',
+                'priority': 'high',
+                'action': 'Improve customer retention',
+                'icon': '🔄'
+            })
+        else:
+            recommendations.append({
+                'category': '👥 Customer Retention',
+                'title': 'Good Customer Retention Rate',
+                'description': f'{repeat_rate:.1f}% of customers return for repeat purchases. Continue nurturing these relationships with personalized offers.',
+                'priority': 'low',
+                'action': 'Maintain retention programs',
+                'icon': '✅'
+            })
+
+    # ============================================================
+    # 4. GEOGRAPHIC EXPANSION
+    # ============================================================
+
+    if 'city' in df.columns:
+        city_revenue = df.groupby('city')['amount'].sum().sort_values(ascending=False)
+        top_cities = city_revenue.head(5)
+        top_city_share = top_cities.sum() / total_revenue * 100 if total_revenue > 0 else 0
+        unique_cities = len(city_revenue)
+
+        if len(top_cities) > 0:
+            recommendations.append({
+                'category': '📍 Geographic Strategy',
+                'title': 'Top Performing Markets',
+                'description': f'Top 5 cities generate {top_city_share:.1f}% of revenue (${top_cities.sum():,.2f}). Invest in local marketing and establish partnerships in these areas.',
+                'priority': 'medium',
+                'action': 'Expand in top cities',
+                'icon': '🏙️'
+            })
+
+        if len(city_revenue) > 0:
+            recommendations.append({
+                'category': '📍 Geographic Strategy',
+                'title': 'Market Expansion Opportunities',
+                'description': f'You currently operate in {unique_cities} cities. Consider expanding to cities with similar demographics to your top performers.',
+                'priority': 'medium',
+                'action': 'Explore new markets',
+                'icon': '🌍'
+            })
+
+    # ============================================================
+    # 5. SEASONAL & TIME-BASED INSIGHTS
+    # ============================================================
+
+    if 'invoice_date' in df.columns:
+        df_copy = df.copy()
+        df_copy['month'] = df_copy['invoice_date'].dt.month
+        df_copy['quarter'] = df_copy['invoice_date'].dt.quarter
+        df_copy['day_of_week'] = df_copy['invoice_date'].dt.day_name()
+
+        # Monthly analysis
+        monthly_revenue = df_copy.groupby('month')['amount'].sum()
+        if len(monthly_revenue) > 0:
+            best_month = monthly_revenue.idxmax()
+            best_month_revenue = monthly_revenue.max()
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+            recommendations.append({
+                'category': '📅 Seasonal Planning',
+                'title': 'Peak Season Identified',
+                'description': f'**{month_names[best_month-1]}** is your peak month with ${best_month_revenue:,.2f} in revenue. Plan inventory, staffing, and marketing campaigns around this period.',
+                'priority': 'high',
+                'action': 'Prepare for peak season',
+                'icon': '📊'
+            })
+
+        # Day of week analysis
+        daily_revenue = df_copy.groupby('day_of_week')['amount'].mean()
+        if len(daily_revenue) > 0:
+            best_day = daily_revenue.idxmax()
+            best_day_revenue = daily_revenue.max()
+
+            recommendations.append({
+                'category': '📅 Seasonal Planning',
+                'title': 'Optimal Sales Day',
+                'description': f'**{best_day}** has the highest average revenue (${best_day_revenue:.2f}). Consider running targeted promotions on this day.',
+                'priority': 'medium',
+                'action': 'Optimize for best days',
+                'icon': '📆'
+            })
+
+        # Quarterly analysis
+        quarterly_revenue = df_copy.groupby('quarter')['amount'].sum()
+        if len(quarterly_revenue) > 0:
+            best_quarter = quarterly_revenue.idxmax()
+            best_quarter_revenue = quarterly_revenue.max()
+
+            recommendations.append({
+                'category': '📅 Seasonal Planning',
+                'title': 'Quarterly Performance',
+                'description': f'Q{best_quarter} is your strongest quarter with ${best_quarter_revenue:,.2f} in revenue. Plan major initiatives around this period.',
+                'priority': 'medium',
+                'action': 'Align strategy with quarterly trends',
+                'icon': '📈'
+            })
+
+    # ============================================================
+    # 6. PRICING & MARGIN OPTIMIZATION
+    # ============================================================
+
+    if 'amount' in df.columns and 'qty' in df.columns:
+        df_copy = df.copy()
+        df_copy['unit_price'] = df_copy['amount'] / df_copy['qty']
+        avg_unit_price = df_copy['unit_price'].mean()
+        min_unit_price = df_copy['unit_price'].min()
+        max_unit_price = df_copy['unit_price'].max()
+        std_unit_price = df_copy['unit_price'].std()
+
+        recommendations.append({
+            'category': '💲 Pricing Strategy',
+            'title': 'Price Range Analysis',
+            'description': f'''
+**Pricing Overview:**
+- Average Unit Price: ${avg_unit_price:.2f}
+- Price Range: ${min_unit_price:.2f} - ${max_unit_price:.2f}
+- Standard Deviation: ${std_unit_price:.2f}
+
+**Recommendation:** Products at the lower price range may have room for increase. Test premium pricing for top-performing products.
+            ''',
+            'priority': 'medium',
+            'action': 'Optimize pricing strategy',
+            'icon': '💲'
+        })
+
+    # ============================================================
+    # 7. OPERATIONAL EFFICIENCY
+    # ============================================================
+
+    if 'qty' in df.columns:
+        avg_qty = df['qty'].mean()
+        max_qty = df['qty'].max()
+
+        recommendations.append({
+            'category': '⚙️ Operational Efficiency',
+            'title': 'Order Size Optimization',
+            'description': f'Average order quantity is {avg_qty:.1f} units (max: {max_qty}). Encourage larger orders through free shipping thresholds and volume discounts.',
+            'priority': 'low',
+            'action': 'Optimize order sizes',
+            'icon': '📦'
+        })
+
+    # ============================================================
+    # 8. DIGITAL MARKETING
+    # ============================================================
+
+    if 'email' in df.columns:
+        unique_customers = df['email'].nunique()
+
+        recommendations.append({
+            'category': '📢 Digital Marketing',
+            'title': 'Email Marketing Strategy',
+            'description': f'You have {unique_customers} customer emails. Create a segmented email marketing strategy with personalized product recommendations.',
+            'priority': 'medium',
+            'action': 'Launch email campaigns',
+            'icon': '📧'
+        })
+
+    # ============================================================
+    # 9. CUSTOMER SERVICE
+    # ============================================================
+
+    if 'amount' in df.columns:
+        small_orders = df[df['amount'] < df['amount'].quantile(0.1)]
+        if len(small_orders) > 0:
+            recommendations.append({
+                'category': '🛠️ Customer Service',
+                'title': 'Small Order Analysis',
+                'description': f'{len(small_orders)} orders ({len(small_orders)/len(df)*100:.1f}%) are below the 10th percentile. Consider free shipping thresholds or minimum order values.',
+                'priority': 'medium',
+                'action': 'Optimize small orders',
+                'icon': '🛍️'
+            })
+
+    # ============================================================
+    # 10. INVENTORY & SUPPLY CHAIN
+    # ============================================================
+
+    if 'product_id' in df.columns and 'qty' in df.columns:
+        top_products_qty = df.groupby('product_id')['qty'].sum().nlargest(5)
+
+        if len(top_products_qty) > 0:
+            recommendations.append({
+                'category': '📦 Inventory Management',
+                'title': 'Inventory Planning',
+                'description': f'Maintain optimal stock levels for top-selling products. Implement demand forecasting to prevent stockouts and overstock.',
+                'priority': 'high',
+                'action': 'Optimize inventory levels',
+                'icon': '📦'
+            })
+
+    # ============================================================
+    # 11. FINANCIAL INSIGHTS
+    # ============================================================
+
+    if 'amount' in df.columns:
+        recommendations.append({
+            'category': '💰 Financial Insights',
+            'title': 'Revenue Growth Strategy',
+            'description': f'Current revenue: ${total_revenue:,.2f} from {total_invoices} transactions. Average invoice: ${avg_invoice:.2f}. Focus on increasing average order value.',
+            'priority': 'medium',
+            'action': 'Implement growth strategies',
+            'icon': '📊'
+        })
+
+    # ============================================================
+    # 12. COMPETITIVE ADVANTAGE
+    # ============================================================
+
+    if 'email' in df.columns:
+        unique_customers = df['email'].nunique()
+        avg_transactions_per_customer = total_invoices / unique_customers if unique_customers > 0 else 0
+
+        recommendations.append({
+            'category': '🏆 Competitive Advantage',
+            'title': 'Customer Experience Enhancement',
+            'description': f'With {unique_customers} customers averaging {avg_transactions_per_customer:.1f} transactions each, focus on enhancing customer experience through personalization and faster delivery.',
+            'priority': 'low',
+            'action': 'Improve customer experience',
+            'icon': '🏆'
+        })
+
+    return recommendations
 
 # ============================================================
 # SIDEBAR
@@ -345,401 +696,6 @@ with st.sidebar:
         Built with ❤️ by Tahir Mahmood
     </div>
     """, unsafe_allow_html=True)
-
-# ============================================================
-# RECOMMENDATION ENGINE
-# ============================================================
-def generate_business_recommendations(df):
-    """
-    Generate comprehensive business recommendations
-    based on invoice data analysis
-    """
-    recommendations = []
-
-    # Calculate key metrics
-    total_revenue = df['amount'].sum()
-    avg_invoice = df['amount'].mean()
-    total_invoices = len(df)
-
-    # ============================================================
-    # 1. REVENUE & SALES OPTIMIZATION
-    # ============================================================
-
-    if 'email' in df.columns:
-        revenue_per_customer = df.groupby('email')['amount'].sum()
-        unique_customers = len(revenue_per_customer)
-        avg_revenue_per_customer = revenue_per_customer.mean()
-        top_customers = revenue_per_customer.nlargest(10)
-        top_customer_share = top_customers.sum() / total_revenue * 100
-
-        if top_customer_share > 50:
-            recommendations.append({
-                'category': '💰 Revenue Optimization',
-                'title': 'High Customer Concentration Risk',
-                'description': f'Top 10 customers contribute {top_customer_share:.1f}% of total revenue ({top_customers.sum():,.2f}). This creates dependency risk. Diversify your customer base through targeted acquisition campaigns.',
-                'priority': 'high',
-                'action': 'Implement customer acquisition strategy',
-                'icon': '🎯'
-            })
-        else:
-            recommendations.append({
-                'category': '💰 Revenue Optimization',
-                'title': 'Healthy Customer Distribution',
-                'description': f'Revenue is well-distributed across {unique_customers} customers. Average revenue per customer is ${avg_revenue_per_customer:.2f}. Consider upselling to mid-tier customers to increase this metric.',
-                'priority': 'medium',
-                'action': 'Launch upsell campaigns',
-                'icon': '📈'
-            })
-
-    # ============================================================
-    # 2. PRODUCT PERFORMANCE
-    # ============================================================
-
-    if 'product_id' in df.columns:
-        product_revenue = df.groupby('product_id')['amount'].sum()
-        top_products = product_revenue.nlargest(5)
-        bottom_products = product_revenue.nsmallest(5)
-        top_product_share = top_products.sum() / total_revenue * 100
-        unique_products = len(product_revenue)
-
-        if len(top_products) > 0:
-            recommendations.append({
-                'category': '🏷️ Product Strategy',
-                'title': 'Star Products Identification',
-                'description': f'Top 5 products generate {top_product_share:.1f}% of revenue (${top_products.sum():,.2f}). These are your star performers: {", ".join([f"Product {p}" for p in top_products.index[:3]])}. Increase inventory and marketing for these products.',
-                'priority': 'high',
-                'action': 'Invest in star products',
-                'icon': '⭐'
-            })
-
-        if len(bottom_products) > 0 and bottom_products.sum() > 0:
-            if len(bottom_products) >= 5:
-                recommendations.append({
-                    'category': '🏷️ Product Strategy',
-                    'title': 'Underperforming Products Review',
-                    'description': f'Bottom 5 products generate only ${bottom_products.sum():.2f} in revenue. Consider discontinuation, rebranding, or bundle offers with top products to clear inventory.',
-                    'priority': 'medium',
-                    'action': 'Review underperforming products',
-                    'icon': '📉'
-                })
-
-        if unique_products >= 3:
-            recommendations.append({
-                'category': '🏷️ Product Strategy',
-                'title': 'Product Bundling Opportunity',
-                'description': f'With {unique_products} products in your portfolio, create strategic bundles combining popular products with complementary items. This can increase average order value by 15-30%.',
-                'priority': 'medium',
-                'action': 'Create product bundles',
-                'icon': '📦'
-            })
-
-    # ============================================================
-    # 3. CUSTOMER INSIGHTS
-    # ============================================================
-
-    if 'email' in df.columns:
-        customer_spending = df.groupby('email')['amount'].sum()
-        unique_customers = len(customer_spending)
-
-        # Customer segmentation
-        if unique_customers > 0:
-            segments = pd.cut(
-                customer_spending,
-                bins=[0, 100, 500, 1000, float('inf')],
-                labels=['Bronze (<$100)', 'Silver ($100-$500)',
-                       'Gold ($500-$1000)', 'Platinum ($1000+)']
-            )
-            segment_counts = segments.value_counts()
-
-            seg_text = []
-            for seg, count in segment_counts.items():
-                emoji = {'Bronze (<$100)': '🥉', 'Silver ($100-$500)': '🥈',
-                        'Gold ($500-$1000)': '🥇', 'Platinum ($1000+)': '💎'}.get(seg, '📊')
-                seg_text.append(f"{emoji} {seg}: {count} customers")
-
-            recommendations.append({
-                'category': '👥 Customer Segmentation',
-                'title': 'Customer Value Distribution',
-                'description': '\n'.join(seg_text) + f'\n\n**Action:** Create targeted marketing campaigns for each segment. Focus on moving Silver to Gold and Gold to Platinum.',
-                'priority': 'high',
-                'action': 'Implement segment-specific marketing',
-                'icon': '👥'
-            })
-
-        # Loyalty program
-        if segment_counts.get('Gold ($500-$1000)', 0) > 0 or segment_counts.get('Platinum ($1000+)', 0) > 0:
-            gold_platinum = segment_counts.get('Gold ($500-$1000)', 0) + segment_counts.get('Platinum ($1000+)', 0)
-            recommendations.append({
-                'category': '👥 Customer Retention',
-                'title': 'Loyalty Program Implementation',
-                'description': f'You have {gold_platinum} high-value customers (Gold + Platinum). Implement a tiered loyalty program with exclusive benefits like early access, VIP support, and special discounts to retain these valuable customers.',
-                'priority': 'high',
-                'action': 'Launch loyalty program',
-                'icon': '💎'
-            })
-
-        # Repeat customer analysis
-        order_counts = df.groupby('email').size()
-        repeat_customers = (order_counts > 1).sum()
-        repeat_rate = repeat_customers / unique_customers * 100 if unique_customers > 0 else 0
-
-        if repeat_rate < 30:
-            recommendations.append({
-                'category': '👥 Customer Retention',
-                'title': 'Low Repeat Customer Rate',
-                'description': f'Only {repeat_rate:.1f}% of customers are repeat buyers. Implement post-purchase email campaigns, subscription options, and referral programs. A 5% increase in retention can increase profits by 25-95%.',
-                'priority': 'high',
-                'action': 'Improve customer retention',
-                'icon': '🔄'
-            })
-        else:
-            recommendations.append({
-                'category': '👥 Customer Retention',
-                'title': 'Good Customer Retention Rate',
-                'description': f'{repeat_rate:.1f}% of customers return for repeat purchases. Continue nurturing these relationships with personalized offers and loyalty rewards.',
-                'priority': 'low',
-                'action': 'Maintain retention programs',
-                'icon': '✅'
-            })
-
-    # ============================================================
-    # 4. GEOGRAPHIC EXPANSION
-    # ============================================================
-
-    if 'city' in df.columns:
-        city_revenue = df.groupby('city')['amount'].sum().sort_values(ascending=False)
-        top_cities = city_revenue.head(5)
-        top_city_share = top_cities.sum() / total_revenue * 100 if total_revenue > 0 else 0
-        unique_cities = len(city_revenue)
-
-        if len(top_cities) > 0:
-            recommendations.append({
-                'category': '📍 Geographic Strategy',
-                'title': 'Top Performing Markets',
-                'description': f'Top 5 cities generate {top_city_share:.1f}% of revenue (${top_cities.sum():,.2f}). Key markets: {", ".join(top_cities.index[:3])}. Invest in local marketing and establish partnerships in these areas.',
-                'priority': 'medium',
-                'action': 'Expand in top cities',
-                'icon': '🏙️'
-            })
-
-        # Expansion opportunities
-        if len(city_revenue) > 0:
-            recommendations.append({
-                'category': '📍 Geographic Strategy',
-                'title': 'Market Expansion Opportunities',
-                'description': f'You currently operate in {unique_cities} cities. Consider expanding to cities with similar demographics to your top performers. New markets can increase revenue by 20-40%.',
-                'priority': 'medium',
-                'action': 'Explore new markets',
-                'icon': '🌍'
-            })
-
-    # ============================================================
-    # 5. SEASONAL & TIME-BASED INSIGHTS
-    # ============================================================
-
-    if 'invoice_date' in df.columns:
-        df_copy = df.copy()
-        df_copy['month'] = df_copy['invoice_date'].dt.month
-        df_copy['quarter'] = df_copy['invoice_date'].dt.quarter
-        df_copy['day_of_week'] = df_copy['invoice_date'].dt.day_name()
-
-        # Monthly analysis
-        monthly_revenue = df_copy.groupby('month')['amount'].sum()
-        if len(monthly_revenue) > 0:
-            best_month = monthly_revenue.idxmax()
-            best_month_revenue = monthly_revenue.max()
-            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-            recommendations.append({
-                'category': '📅 Seasonal Planning',
-                'title': 'Peak Season Identified',
-                'description': f'**{month_names[best_month-1]}** is your peak month with ${best_month_revenue:,.2f} in revenue. Plan inventory, staffing, and marketing campaigns around this period. Prepare for seasonal fluctuations with advance planning.',
-                'priority': 'high',
-                'action': 'Prepare for peak season',
-                'icon': '📊'
-            })
-
-        # Day of week analysis
-        daily_revenue = df_copy.groupby('day_of_week')['amount'].mean()
-        if len(daily_revenue) > 0:
-            best_day = daily_revenue.idxmax()
-            best_day_revenue = daily_revenue.max()
-
-            recommendations.append({
-                'category': '📅 Seasonal Planning',
-                'title': 'Optimal Sales Day',
-                'description': f'**{best_day}** has the highest average revenue (${best_day_revenue:.2f}). Consider running targeted promotions and flash sales on this day to maximize revenue.',
-                'priority': 'medium',
-                'action': 'Optimize for best days',
-                'icon': '📆'
-            })
-
-        # Quarterly analysis
-        quarterly_revenue = df_copy.groupby('quarter')['amount'].sum()
-        if len(quarterly_revenue) > 0:
-            best_quarter = quarterly_revenue.idxmax()
-            best_quarter_revenue = quarterly_revenue.max()
-
-            recommendations.append({
-                'category': '📅 Seasonal Planning',
-                'title': 'Quarterly Performance',
-                'description': f'Q{best_quarter} is your strongest quarter with ${best_quarter_revenue:,.2f} in revenue. Plan major initiatives and product launches around this period.',
-                'priority': 'medium',
-                'action': 'Align strategy with quarterly trends',
-                'icon': '📈'
-            })
-
-    # ============================================================
-    # 6. PRICING & MARGIN OPTIMIZATION
-    # ============================================================
-
-    if 'amount' in df.columns and 'qty' in df.columns:
-        df_copy = df.copy()
-        df_copy['unit_price'] = df_copy['amount'] / df_copy['qty']
-        avg_unit_price = df_copy['unit_price'].mean()
-        min_unit_price = df_copy['unit_price'].min()
-        max_unit_price = df_copy['unit_price'].max()
-        std_unit_price = df_copy['unit_price'].std()
-
-        recommendations.append({
-            'category': '💲 Pricing Strategy',
-            'title': 'Price Range Analysis',
-            'description': f'''
-            **Pricing Overview:**
-            - Average Unit Price: ${avg_unit_price:.2f}
-            - Price Range: ${min_unit_price:.2f} - ${max_unit_price:.2f}
-            - Standard Deviation: ${std_unit_price:.2f}
-            
-            **Recommendation:** Products at the lower price range may have room for increase. Test premium pricing for top-performing products. Consider tiered pricing for bulk purchases.
-            ''',
-            'priority': 'medium',
-            'action': 'Optimize pricing strategy',
-            'icon': '💲'
-        })
-
-        # Discount/Volume analysis
-        discount_threshold = df_copy['qty'].mean() * 0.5
-        high_volume = df_copy[df_copy['qty'] > discount_threshold]
-        if len(high_volume) > 0:
-            recommendations.append({
-                'category': '💲 Pricing Strategy',
-                'title': 'Volume Discount Opportunity',
-                'description': f'{len(high_volume)} transactions ({len(high_volume)/len(df)*100:.1f}%) are high-volume orders. Consider implementing a volume-based discount program to encourage larger purchases.',
-                'priority': 'medium',
-                'action': 'Implement volume discounts',
-                'icon': '🏷️'
-            })
-
-    # ============================================================
-    # 7. OPERATIONAL EFFICIENCY
-    # ============================================================
-
-    if 'qty' in df.columns:
-        avg_qty = df['qty'].mean()
-        max_qty = df['qty'].max()
-
-        recommendations.append({
-            'category': '⚙️ Operational Efficiency',
-            'title': 'Order Size Optimization',
-            'description': f'Average order quantity is {avg_qty:.1f} units (max: {max_qty}). Encourage larger orders through free shipping thresholds, bundle deals, and volume discounts to increase average order value.',
-            'priority': 'low',
-            'action': 'Optimize order sizes',
-            'icon': '📦'
-        })
-
-    # ============================================================
-    # 8. DIGITAL MARKETING
-    # ============================================================
-
-    if 'email' in df.columns:
-        unique_customers = df['email'].nunique()
-
-        recommendations.append({
-            'category': '📢 Digital Marketing',
-            'title': 'Email Marketing Strategy',
-            'description': f'You have {unique_customers} customer emails. Create a segmented email marketing strategy with personalized product recommendations, abandoned cart recovery, and win-back campaigns for lapsed customers.',
-            'priority': 'medium',
-            'action': 'Launch email campaigns',
-            'icon': '📧'
-        })
-
-        # Social media suggestion
-        recommendations.append({
-            'category': '📢 Digital Marketing',
-            'title': 'Social Proof & Testimonials',
-            'description': 'Leverage your best customer reviews and testimonials in marketing materials. Showcase top products with customer feedback to build trust and increase conversion rates.',
-            'priority': 'low',
-            'action': 'Collect and share testimonials',
-            'icon': '⭐'
-        })
-
-    # ============================================================
-    # 9. CUSTOMER SERVICE
-    # ============================================================
-
-    if 'amount' in df.columns:
-        small_orders = df[df['amount'] < df['amount'].quantile(0.1)]
-        if len(small_orders) > 0:
-            recommendations.append({
-                'category': '🛠️ Customer Service',
-                'title': 'Small Order Analysis',
-                'description': f'{len(small_orders)} orders ({len(small_orders)/len(df)*100:.1f}%) are below the 10th percentile (${df["amount"].quantile(0.1):.2f}). Consider offering free shipping thresholds, minimum order values, or bundle deals to increase order value.',
-                'priority': 'medium',
-                'action': 'Optimize small orders',
-                'icon': '🛍️'
-            })
-
-    # ============================================================
-    # 10. INVENTORY & SUPPLY CHAIN
-    # ============================================================
-
-    if 'product_id' in df.columns and 'qty' in df.columns:
-        top_products_qty = df.groupby('product_id')['qty'].sum().nlargest(5)
-
-        if len(top_products_qty) > 0:
-            recommendations.append({
-                'category': '📦 Inventory Management',
-                'title': 'Inventory Planning',
-                'description': f'Top-selling products: {", ".join([f"Product {p}" for p in top_products_qty.index[:3]])}. Maintain optimal stock levels for these products. Implement demand forecasting to prevent stockouts and overstock.',
-                'priority': 'high',
-                'action': 'Optimize inventory levels',
-                'icon': '📦'
-            })
-
-    # ============================================================
-    # 11. FINANCIAL INSIGHTS
-    # ============================================================
-
-    if 'amount' in df.columns:
-        # Revenue growth suggestion
-        recommendations.append({
-            'category': '💰 Financial Insights',
-            'title': 'Revenue Growth Strategy',
-            'description': f'Current revenue: ${total_revenue:,.2f} from {total_invoices} transactions. Average invoice: ${avg_invoice:.2f}. Focus on increasing average order value and customer lifetime value.',
-            'priority': 'medium',
-            'action': 'Implement growth strategies',
-            'icon': '📊'
-        })
-
-    # ============================================================
-    # 12. COMPETITIVE ADVANTAGE
-    # ============================================================
-
-    if 'email' in df.columns:
-        unique_customers = df['email'].nunique()
-        avg_transactions_per_customer = total_invoices / unique_customers if unique_customers > 0 else 0
-
-        recommendations.append({
-            'category': '🏆 Competitive Advantage',
-            'title': 'Customer Experience Enhancement',
-            'description': f'With {unique_customers} customers averaging {avg_transactions_per_customer:.1f} transactions each, focus on enhancing customer experience through personalization, faster delivery, and better communication.',
-            'priority': 'low',
-            'action': 'Improve customer experience',
-            'icon': '🏆'
-        })
-
-    return recommendations
 
 # ============================================================
 # FILTERS
