@@ -332,8 +332,8 @@ def generate_business_recommendations(df):
             })
 
         # Loyalty program
-        if segment_counts.get('Gold ($500-$1000)', 0) > 0 or segment_counts.get('Platinum ($1000+)', 0) > 0:
-            gold_platinum = segment_counts.get('Gold ($500-$1000)', 0) + segment_counts.get('Platinum ($1000+)', 0)
+        gold_platinum = segment_counts.get('Gold ($500-$1000)', 0) + segment_counts.get('Platinum ($1000+)', 0)
+        if gold_platinum > 0:
             recommendations.append({
                 'category': '👥 Customer Retention',
                 'title': 'Loyalty Program Implementation',
@@ -387,7 +387,7 @@ def generate_business_recommendations(df):
                 'icon': '🏙️'
             })
 
-        if len(city_revenue) > 0:
+        if unique_cities > 0:
             recommendations.append({
                 'category': '📍 Geographic Strategy',
                 'title': 'Market Expansion Opportunities',
@@ -582,7 +582,7 @@ def generate_business_recommendations(df):
     return recommendations
 
 # ============================================================
-# SIDEBAR
+# SIDEBAR - Complete Updated Version
 # ============================================================
 with st.sidebar:
     st.markdown("### 📁 Data Source")
@@ -595,33 +595,74 @@ with st.sidebar:
 
     if uploaded_file is not None:
         try:
+            # ---------- LOAD FILE ----------
             if uploaded_file.name.endswith('.csv'):
                 try:
-                    df = pd.read_csv(uploaded_file)
+                    # Read with low_memory=False to handle mixed types
+                    df = pd.read_csv(uploaded_file, low_memory=False)
                 except pd.errors.ParserError:
                     uploaded_file.seek(0)
-                    df = pd.read_csv(uploaded_file, on_bad_lines='skip')
+                    df = pd.read_csv(uploaded_file, on_bad_lines='skip', low_memory=False)
                 except Exception:
                     uploaded_file.seek(0)
-                    df = pd.read_csv(uploaded_file, engine='python')
+                    df = pd.read_csv(uploaded_file, engine='python', low_memory=False)
             else:
                 df = pd.read_excel(uploaded_file, engine='openpyxl')
 
-            # Data cleaning
+            # ---------- CLEAN DATA ----------
+
+            # Clean column names
+            df.columns = df.columns.str.strip()
+
+            # Convert 'amount' to numeric
             if 'amount' in df.columns:
                 df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
+                df['amount'] = df['amount'].replace([np.inf, -np.inf], np.nan)
                 df = df.dropna(subset=['amount'])
+            else:
+                st.error("❌ No 'amount' column found! Please check your file format.")
+                st.stop()
 
+            # Convert 'qty' to numeric
+            if 'qty' in df.columns:
+                df['qty'] = pd.to_numeric(df['qty'], errors='coerce')
+                df['qty'] = df['qty'].fillna(0).astype(int)
+
+            # Convert 'invoice_date' to datetime
             if 'invoice_date' in df.columns:
                 df['invoice_date'] = pd.to_datetime(df['invoice_date'], errors='coerce')
+                df = df.dropna(subset=['invoice_date'])
+            else:
+                # Create dummy date if not exists
+                df['invoice_date'] = pd.Timestamp.now()
+                st.warning("⚠️ No 'invoice_date' column found. Using current date.")
+
+            # Convert all other columns to string
+            for col in df.columns:
+                if col not in ['amount', 'qty', 'invoice_date']:
+                    try:
+                        df[col] = df[col].astype(str)
+                    except:
+                        pass
 
             # Create customer name if not exists
             if 'customer_name' not in df.columns:
                 if 'first_name' in df.columns and 'last_name' in df.columns:
-                    df['customer_name'] = df['first_name'] + ' ' + df['last_name']
+                    df['customer_name'] = df['first_name'].astype(str) + ' ' + df['last_name'].astype(str)
+                elif 'name' in df.columns:
+                    df['customer_name'] = df['name'].astype(str)
+                elif 'email' in df.columns:
+                    df['customer_name'] = df['email'].astype(str)
                 else:
                     df['customer_name'] = df.index.astype(str)
+                    st.warning("⚠️ No customer name column found. Using row numbers.")
 
+            # Check if any data remains
+            if len(df) == 0:
+                st.error("❌ No valid data found after cleaning. Please check your file format.")
+                st.stop()
+
+            # ---------- STORE IN SESSION ----------
             st.session_state.df = df
             st.session_state.filtered_df = df
             st.session_state.data_loaded = True
@@ -636,26 +677,36 @@ with st.sidebar:
             - Name: {uploaded_file.name}
             - Rows: {len(df):,}
             - Columns: {len(df.columns)}
+            - Total Revenue: ${df['amount'].sum():,.2f}
             """)
 
         except Exception as e:
             st.error(f"Error loading file: {e}")
+            import traceback
+            st.code(traceback.format_exc())
             st.session_state.data_loaded = False
 
     st.markdown("---")
 
+    # ---------- SAMPLE DATA ----------
     if st.button("📝 Load Sample Data", use_container_width=True):
         sample_path = 'data/sample_invoices.csv'
         if os.path.exists(sample_path):
             try:
-                df = pd.read_csv(sample_path)
+                df = pd.read_csv(sample_path, low_memory=False)
 
+                # Clean sample data
                 if 'amount' in df.columns:
                     df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
                     df = df.dropna(subset=['amount'])
 
                 if 'invoice_date' in df.columns:
                     df['invoice_date'] = pd.to_datetime(df['invoice_date'], errors='coerce')
+                    df = df.dropna(subset=['invoice_date'])
+
+                if 'qty' in df.columns:
+                    df['qty'] = pd.to_numeric(df['qty'], errors='coerce')
+                    df['qty'] = df['qty'].fillna(0).astype(int)
 
                 if 'customer_name' not in df.columns:
                     if 'first_name' in df.columns and 'last_name' in df.columns:
@@ -667,7 +718,7 @@ with st.sidebar:
                 st.session_state.filtered_df = df
                 st.session_state.data_loaded = True
                 st.session_state.recommendations = generate_business_recommendations(df)
-                st.success("✅ Sample data loaded!")
+                st.success(f"✅ Sample data loaded! ({len(df)} invoices)")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error loading sample data: {e}")
@@ -676,7 +727,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Quick Stats in Sidebar
+    # ---------- QUICK STATS ----------
     if st.session_state.data_loaded and st.session_state.df is not None:
         df = st.session_state.df
         st.markdown("### 📊 Quick Stats")
@@ -712,36 +763,43 @@ if st.session_state.data_loaded and st.session_state.df is not None:
         max_date = df['invoice_date'].max()
 
         if pd.notnull(min_date) and pd.notnull(max_date):
-            date_range = st.sidebar.date_input(
-                "Date Range",
-                value=[min_date.date(), max_date.date()],
-                min_value=min_date.date(),
-                max_value=max_date.date()
-            )
+            try:
+                date_range = st.sidebar.date_input(
+                    "Date Range",
+                    value=[min_date.date(), max_date.date()],
+                    min_value=min_date.date(),
+                    max_value=max_date.date()
+                )
 
-            if len(date_range) == 2:
-                mask = (df['invoice_date'].dt.date >= date_range[0]) & \
-                       (df['invoice_date'].dt.date <= date_range[1])
-                st.session_state.filtered_df = df[mask]
+                if len(date_range) == 2:
+                    mask = (df['invoice_date'].dt.date >= date_range[0]) & \
+                           (df['invoice_date'].dt.date <= date_range[1])
+                    st.session_state.filtered_df = df[mask]
+            except:
+                pass
 
     # Amount filter
-    if 'amount' in df.columns:
-        min_amount = float(df['amount'].min())
-        max_amount = float(df['amount'].max())
+    if 'amount' in df.columns and len(df) > 0:
+        try:
+            min_amount = float(df['amount'].min())
+            max_amount = float(df['amount'].max())
 
-        amount_range = st.sidebar.slider(
-            "Amount Range ($)",
-            min_value=min_amount,
-            max_value=max_amount,
-            value=(min_amount, max_amount)
-        )
+            if min_amount < max_amount:
+                amount_range = st.sidebar.slider(
+                    "Amount Range ($)",
+                    min_value=min_amount,
+                    max_value=max_amount,
+                    value=(min_amount, max_amount)
+                )
 
-        filtered_df = st.session_state.filtered_df if st.session_state.filtered_df is not None else df
-        filtered_df = filtered_df[
-            (filtered_df['amount'] >= amount_range[0]) &
-            (filtered_df['amount'] <= amount_range[1])
-        ]
-        st.session_state.filtered_df = filtered_df
+                filtered_df = st.session_state.filtered_df if st.session_state.filtered_df is not None else df
+                filtered_df = filtered_df[
+                    (filtered_df['amount'] >= amount_range[0]) &
+                    (filtered_df['amount'] <= amount_range[1])
+                ]
+                st.session_state.filtered_df = filtered_df
+        except:
+            pass
 
 # ============================================================
 # MAIN CONTENT
@@ -809,37 +867,49 @@ if st.session_state.data_loaded and st.session_state.df is not None:
         with col1:
             st.subheader("🏆 Top Products by Revenue")
             if 'product_id' in df.columns:
-                product_revenue = df.groupby('product_id')['amount'].sum().sort_values(ascending=False).head(10)
-                fig = px.bar(
-                    x=product_revenue.values,
-                    y=product_revenue.index.astype(str),
-                    orientation='h',
-                    title='Top 10 Products',
-                    labels={'x': 'Revenue ($)', 'y': 'Product ID'},
-                    color=product_revenue.values,
-                    color_continuous_scale=['#1a1a2e', '#0f3460', '#667eea'],
-                    text=product_revenue.values
-                )
-                fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
-                fig.update_layout(height=400, margin=dict(l=0, r=0, t=40, b=0))
-                st.plotly_chart(fig, use_container_width=True)
+                try:
+                    product_revenue = df.groupby('product_id')['amount'].sum().sort_values(ascending=False).head(10)
+                    if len(product_revenue) > 0:
+                        fig = px.bar(
+                            x=product_revenue.values,
+                            y=product_revenue.index.astype(str),
+                            orientation='h',
+                            title='Top 10 Products',
+                            labels={'x': 'Revenue ($)', 'y': 'Product ID'},
+                            color=product_revenue.values,
+                            color_continuous_scale=['#1a1a2e', '#0f3460', '#667eea'],
+                            text=product_revenue.values
+                        )
+                        fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
+                        fig.update_layout(height=400, margin=dict(l=0, r=0, t=40, b=0))
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No product data available")
+                except:
+                    st.info("No product data available")
             else:
                 st.info("No product data available")
 
         with col2:
             st.subheader("📍 Revenue by City")
             if 'city' in df.columns:
-                city_revenue = df.groupby('city')['amount'].sum().sort_values(ascending=False).head(10)
-                fig = px.pie(
-                    values=city_revenue.values,
-                    names=city_revenue.index,
-                    title='Top 10 Cities',
-                    color_discrete_sequence=px.colors.qualitative.Set3,
-                    hole=0.3
-                )
-                fig.update_traces(textposition='inside', textinfo='percent+label')
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
+                try:
+                    city_revenue = df.groupby('city')['amount'].sum().sort_values(ascending=False).head(10)
+                    if len(city_revenue) > 0:
+                        fig = px.pie(
+                            values=city_revenue.values,
+                            names=city_revenue.index,
+                            title='Top 10 Cities',
+                            color_discrete_sequence=px.colors.qualitative.Set3,
+                            hole=0.3
+                        )
+                        fig.update_traces(textposition='inside', textinfo='percent+label')
+                        fig.update_layout(height=400)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No city data available")
+                except:
+                    st.info("No city data available")
             else:
                 st.info("No city data available")
 
@@ -850,35 +920,47 @@ if st.session_state.data_loaded and st.session_state.df is not None:
 
         with col1:
             if 'invoice_date' in df.columns and len(df) > 0:
-                df['invoice_date'] = pd.to_datetime(df['invoice_date'])
-                daily_revenue = df.groupby(df['invoice_date'].dt.date)['amount'].sum().reset_index()
-                daily_revenue.columns = ['Date', 'Revenue']
+                try:
+                    df['invoice_date'] = pd.to_datetime(df['invoice_date'])
+                    daily_revenue = df.groupby(df['invoice_date'].dt.date)['amount'].sum().reset_index()
+                    daily_revenue.columns = ['Date', 'Revenue']
 
-                fig = px.line(
-                    daily_revenue,
-                    x='Date',
-                    y='Revenue',
-                    title='Daily Revenue Trend',
-                    markers=True,
-                    line_shape='spline'
-                )
-                fig.update_layout(height=400, xaxis_title='Date', yaxis_title='Revenue ($)')
-                st.plotly_chart(fig, use_container_width=True)
+                    if len(daily_revenue) > 1:
+                        fig = px.line(
+                            daily_revenue,
+                            x='Date',
+                            y='Revenue',
+                            title='Daily Revenue Trend',
+                            markers=True,
+                            line_shape='spline'
+                        )
+                        fig.update_layout(height=400, xaxis_title='Date', yaxis_title='Revenue ($)')
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("Not enough data for trend analysis")
+                except:
+                    st.info("Date data not available")
 
         with col2:
             if 'job' in df.columns and len(df) > 0:
-                job_revenue = df.groupby('job')['amount'].sum().sort_values(ascending=False).head(10)
-                fig = px.bar(
-                    x=job_revenue.values,
-                    y=job_revenue.index,
-                    orientation='h',
-                    title='Revenue by Profession',
-                    labels={'x': 'Revenue ($)', 'y': 'Profession'},
-                    color=job_revenue.values,
-                    color_continuous_scale=['#2ca02c', '#1a1a2e']
-                )
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
+                try:
+                    job_revenue = df.groupby('job')['amount'].sum().sort_values(ascending=False).head(10)
+                    if len(job_revenue) > 0:
+                        fig = px.bar(
+                            x=job_revenue.values,
+                            y=job_revenue.index,
+                            orientation='h',
+                            title='Revenue by Profession',
+                            labels={'x': 'Revenue ($)', 'y': 'Profession'},
+                            color=job_revenue.values,
+                            color_continuous_scale=['#2ca02c', '#1a1a2e']
+                        )
+                        fig.update_layout(height=400)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No profession data available")
+                except:
+                    st.info("No profession data available")
 
     # ============================================================
     # TAB 2: DATA EXPLORER
@@ -898,9 +980,13 @@ if st.session_state.data_loaded and st.session_state.df is not None:
 
         # Filter data
         if search_term:
-            mask = df.astype(str).apply(lambda x: x.str.contains(search_term, case=False, na=False)).any(axis=1)
-            display_df = df[mask]
-            st.info(f"Found {len(display_df)} matching records")
+            try:
+                mask = df.astype(str).apply(lambda x: x.str.contains(search_term, case=False, na=False)).any(axis=1)
+                display_df = df[mask]
+                st.info(f"Found {len(display_df)} matching records")
+            except:
+                display_df = df
+                st.info("Search not available for this data")
         else:
             display_df = df
 
@@ -909,7 +995,8 @@ if st.session_state.data_loaded and st.session_state.df is not None:
             important_cols = ['customer_name', 'email', 'amount', 'invoice_date',
                              'product_id', 'qty', 'city', 'job']
             available_cols = [col for col in important_cols if col in display_df.columns]
-            display_df = display_df[available_cols]
+            if available_cols:
+                display_df = display_df[available_cols]
 
         # Display dataframe
         st.dataframe(display_df, use_container_width=True, height=500)
@@ -920,58 +1007,73 @@ if st.session_state.data_loaded and st.session_state.df is not None:
     with tab3:
         st.header("Advanced Analytics")
 
-        if 'amount' in df.columns:
+        if 'amount' in df.columns and len(df) > 0:
             # Revenue Distribution
             st.subheader("💰 Revenue Distribution")
-            fig = px.histogram(
-                df,
-                x='amount',
-                nbins=50,
-                title='Invoice Amount Distribution',
-                labels={'amount': 'Invoice Amount ($)', 'count': 'Number of Invoices'},
-                color_discrete_sequence=['#1a1a2e']
-            )
-            fig.add_vline(x=df['amount'].mean(), line_dash="dash", line_color="#e74c3c",
-                         annotation_text=f"Mean: ${df['amount'].mean():.2f}")
-            fig.add_vline(x=df['amount'].median(), line_dash="dash", line_color="#2ecc71",
-                         annotation_text=f"Median: ${df['amount'].median():.2f}")
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
+            try:
+                fig = px.histogram(
+                    df,
+                    x='amount',
+                    nbins=min(50, len(df)),
+                    title='Invoice Amount Distribution',
+                    labels={'amount': 'Invoice Amount ($)', 'count': 'Number of Invoices'},
+                    color_discrete_sequence=['#1a1a2e']
+                )
+                fig.add_vline(x=df['amount'].mean(), line_dash="dash", line_color="#e74c3c",
+                             annotation_text=f"Mean: ${df['amount'].mean():.2f}")
+                fig.add_vline(x=df['amount'].median(), line_dash="dash", line_color="#2ecc71",
+                             annotation_text=f"Median: ${df['amount'].median():.2f}")
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+            except:
+                st.info("Revenue distribution not available")
 
         # Customer Analytics
-        if 'email' in df.columns:
+        if 'email' in df.columns and 'customer_name' in df.columns and len(df) > 0:
             st.subheader("👥 Customer Analytics")
             col1, col2 = st.columns(2)
 
             with col1:
                 # Top 10 Customers
-                customer_spending = df.groupby('customer_name')['amount'].sum().sort_values(ascending=False).head(10)
-                fig = px.bar(
-                    x=customer_spending.values,
-                    y=customer_spending.index,
-                    orientation='h',
-                    title='Top 10 Customers by Spending',
-                    labels={'x': 'Amount ($)', 'y': 'Customer'},
-                    color=customer_spending.values,
-                    color_continuous_scale=['#1a1a2e', '#667eea']
-                )
-                fig.update_layout(height=350)
-                st.plotly_chart(fig, use_container_width=True)
+                try:
+                    customer_spending = df.groupby('customer_name')['amount'].sum().sort_values(ascending=False).head(10)
+                    if len(customer_spending) > 0:
+                        fig = px.bar(
+                            x=customer_spending.values,
+                            y=customer_spending.index,
+                            orientation='h',
+                            title='Top 10 Customers by Spending',
+                            labels={'x': 'Amount ($)', 'y': 'Customer'},
+                            color=customer_spending.values,
+                            color_continuous_scale=['#1a1a2e', '#667eea']
+                        )
+                        fig.update_layout(height=350)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No customer data available")
+                except:
+                    st.info("Customer data not available")
 
             with col2:
                 # Customer Order Frequency
-                order_freq = df.groupby('customer_name').size().sort_values(ascending=False).head(10)
-                fig = px.bar(
-                    x=order_freq.values,
-                    y=order_freq.index,
-                    orientation='h',
-                    title='Most Active Customers',
-                    labels={'x': 'Number of Orders', 'y': 'Customer'},
-                    color=order_freq.values,
-                    color_continuous_scale=['#1a1a2e', '#f39c12']
-                )
-                fig.update_layout(height=350)
-                st.plotly_chart(fig, use_container_width=True)
+                try:
+                    order_freq = df.groupby('customer_name').size().sort_values(ascending=False).head(10)
+                    if len(order_freq) > 0:
+                        fig = px.bar(
+                            x=order_freq.values,
+                            y=order_freq.index,
+                            orientation='h',
+                            title='Most Active Customers',
+                            labels={'x': 'Number of Orders', 'y': 'Customer'},
+                            color=order_freq.values,
+                            color_continuous_scale=['#1a1a2e', '#f39c12']
+                        )
+                        fig.update_layout(height=350)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No customer data available")
+                except:
+                    st.info("Customer data not available")
 
         # Missing values
         st.subheader("🔍 Data Quality Analysis")
@@ -987,113 +1089,116 @@ if st.session_state.data_loaded and st.session_state.df is not None:
             st.dataframe(missing_df, use_container_width=True)
 
             # Plot missing values
-            fig = px.bar(
-                missing_df,
-                x='Column',
-                y='Missing Percentage',
-                title='Missing Values by Column',
-                color='Missing Percentage',
-                color_continuous_scale=['#2ecc71', '#f39c12', '#e74c3c']
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            try:
+                fig = px.bar(
+                    missing_df,
+                    x='Column',
+                    y='Missing Percentage',
+                    title='Missing Values by Column',
+                    color='Missing Percentage',
+                    color_continuous_scale=['#2ecc71', '#f39c12', '#e74c3c']
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except:
+                pass
         else:
             st.success("✅ No missing values found in the dataset!")
 
     # ============================================================
-    # TAB 4: RECOMMENDATIONS (PROFESSIONAL VERSION)
+    # TAB 4: RECOMMENDATIONS
     # ============================================================
     with tab4:
         st.header("💡 Professional Business Recommendations")
         st.markdown("*Data-driven insights to optimize your business performance*")
 
-        # Filter options
-        col1, col2 = st.columns(2)
+        if st.session_state.recommendations:
+            # Filter options
+            col1, col2 = st.columns(2)
 
-        with col1:
-            priority_filter = st.selectbox(
-                "Filter by Priority",
-                ["All", "High Priority", "Medium Priority", "Low Priority"]
-            )
-
-        with col2:
-            categories = list(set([r['category'] for r in st.session_state.recommendations]))
-            category_filter = st.selectbox(
-                "Filter by Category",
-                ["All"] + categories
-            )
-
-        # Filter recommendations
-        filtered_recs = st.session_state.recommendations
-        if priority_filter != "All":
-            priority_map = {
-                "High Priority": "high",
-                "Medium Priority": "medium",
-                "Low Priority": "low"
-            }
-            filtered_recs = [r for r in filtered_recs if r['priority'] == priority_map[priority_filter]]
-
-        if category_filter != "All":
-            filtered_recs = [r for r in filtered_recs if r['category'] == category_filter]
-
-        # Display recommendations
-        if filtered_recs:
-            # Summary stats
-            high_count = len([r for r in filtered_recs if r['priority'] == 'high'])
-            medium_count = len([r for r in filtered_recs if r['priority'] == 'medium'])
-            low_count = len([r for r in filtered_recs if r['priority'] == 'low'])
-
-            col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("🔴 High Priority", high_count, delta="Urgent")
-            with col2:
-                st.metric("🟡 Medium Priority", medium_count, delta="Important")
-            with col3:
-                st.metric("🟢 Low Priority", low_count, delta="Nice to have")
-
-            st.markdown("---")
-
-            for rec in filtered_recs:
-                priority_class = "rec-priority-" + rec['priority']
-                priority_label = {"high": "High", "medium": "Medium", "low": "Low"}[rec['priority']]
-                priority_badge = {"high": "priority-high", "medium": "priority-medium", "low": "priority-low"}[rec['priority']]
-
-                st.markdown(f"""
-                <div class="rec-card {priority_class}">
-                    <div class="rec-header">
-                        <div>
-                            <span class="rec-icon">{rec['icon']}</span>
-                            <span class="rec-title">{rec['title']}</span>
-                        </div>
-                        <div>
-                            <span class="priority-badge {priority_badge}">{priority_label}</span>
-                            <span class="category-tag" style="margin-left: 8px;">{rec['category']}</span>
-                        </div>
-                    </div>
-                    <div class="rec-description">{rec['description']}</div>
-                    <div class="rec-action">🎯 {rec['action']}</div>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("No recommendations match your filters")
-
-        # Export recommendations
-        st.markdown("---")
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("📥 Export Recommendations as CSV", use_container_width=True):
-                rec_df = pd.DataFrame(st.session_state.recommendations)
-                csv = rec_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download Recommendations",
-                    data=csv,
-                    file_name=f'recommendations_{datetime.now().strftime("%Y%m%d")}.csv',
-                    mime='text/csv'
+                priority_filter = st.selectbox(
+                    "Filter by Priority",
+                    ["All", "High Priority", "Medium Priority", "Low Priority"]
                 )
 
-        with col2:
-            if st.button("📤 Print Recommendations", use_container_width=True):
-                st.write("Print this page or save as PDF for your records")
+            with col2:
+                categories = list(set([r['category'] for r in st.session_state.recommendations]))
+                category_filter = st.selectbox(
+                    "Filter by Category",
+                    ["All"] + categories
+                )
+
+            # Filter recommendations
+            filtered_recs = st.session_state.recommendations
+            if priority_filter != "All":
+                priority_map = {
+                    "High Priority": "high",
+                    "Medium Priority": "medium",
+                    "Low Priority": "low"
+                }
+                filtered_recs = [r for r in filtered_recs if r['priority'] == priority_map[priority_filter]]
+
+            if category_filter != "All":
+                filtered_recs = [r for r in filtered_recs if r['category'] == category_filter]
+
+            # Display recommendations
+            if filtered_recs:
+                # Summary stats
+                high_count = len([r for r in filtered_recs if r['priority'] == 'high'])
+                medium_count = len([r for r in filtered_recs if r['priority'] == 'medium'])
+                low_count = len([r for r in filtered_recs if r['priority'] == 'low'])
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("🔴 High Priority", high_count, delta="Urgent")
+                with col2:
+                    st.metric("🟡 Medium Priority", medium_count, delta="Important")
+                with col3:
+                    st.metric("🟢 Low Priority", low_count, delta="Nice to have")
+
+                st.markdown("---")
+
+                for rec in filtered_recs:
+                    priority_class = "rec-priority-" + rec['priority']
+                    priority_label = {"high": "High", "medium": "Medium", "low": "Low"}[rec['priority']]
+                    priority_badge = {"high": "priority-high", "medium": "priority-medium", "low": "priority-low"}[rec['priority']]
+
+                    st.markdown(f"""
+                    <div class="rec-card {priority_class}">
+                        <div class="rec-header">
+                            <div>
+                                <span class="rec-icon">{rec['icon']}</span>
+                                <span class="rec-title">{rec['title']}</span>
+                            </div>
+                            <div>
+                                <span class="priority-badge {priority_badge}">{priority_label}</span>
+                                <span class="category-tag" style="margin-left: 8px;">{rec['category']}</span>
+                            </div>
+                        </div>
+                        <div class="rec-description">{rec['description']}</div>
+                        <div class="rec-action">🎯 {rec['action']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("No recommendations match your filters")
+        else:
+            st.info("No recommendations available. Please upload data first.")
+
+        # Export recommendations
+        if st.session_state.recommendations:
+            st.markdown("---")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if st.button("📥 Export Recommendations as CSV", use_container_width=True):
+                    rec_df = pd.DataFrame(st.session_state.recommendations)
+                    csv = rec_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="Download Recommendations",
+                        data=csv,
+                        file_name=f'recommendations_{datetime.now().strftime("%Y%m%d")}.csv',
+                        mime='text/csv'
+                    )
 
     # ============================================================
     # TAB 5: EXPORT
