@@ -1,3 +1,8 @@
+"""
+Invoice Data Extractor - Main Application
+A complete invoice analysis tool with Streamlit
+"""
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -10,37 +15,64 @@ import os
 # Add utils to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from utils.data_processor import InvoiceProcessor
-
 # Page configuration
 st.set_page_config(
-    page_title="Invoice Data Extractor",
+    page_title="Invoice Data Extractor - Tahir Mahmood",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # Custom CSS
-with open('assets/style.css') as f:
-    st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+st.markdown("""
+<style>
+    .main-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 15px;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+    }
+    @media (max-width: 768px) {
+        .stTabs [data-baseweb="tab"] {
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Header
+st.markdown("""
+<div class="main-header">
+    <h1>📊 Invoice Data Extractor & Analyzer</h1>
+    <p>Upload CSV/Excel and get instant business insights</p>
+    <p style="font-size: 14px;">Created by Tahir Mahmood | © 2026</p>
+</div>
+""", unsafe_allow_html=True)
 
 # Initialize session state
-if 'processor' not in st.session_state:
-    st.session_state.processor = InvoiceProcessor()
 if 'df' not in st.session_state:
     st.session_state.df = None
+if 'filtered_df' not in st.session_state:
+    st.session_state.filtered_df = None
 if 'data_loaded' not in st.session_state:
     st.session_state.data_loaded = False
 
-# Title
-st.title("📊 Invoice Data Extractor & Analyzer")
-st.markdown("---")
-
-# Sidebar
+# ============================================================
+# SIDEBAR
+# ============================================================
 with st.sidebar:
     st.header("📁 Data Source")
 
-    # File upload
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file",
         type=['csv', 'xlsx', 'xls'],
@@ -50,16 +82,33 @@ with st.sidebar:
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
+                try:
+                    df = pd.read_csv(uploaded_file)
+                except pd.errors.ParserError:
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, on_bad_lines='skip')
+                except Exception:
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, engine='python')
             else:
-                df = pd.read_excel(uploaded_file)
+                df = pd.read_excel(uploaded_file, engine='openpyxl')
+
+            # ============================================================
+            # ⭐ FIX: Ensure amount is numeric
+            # ============================================================
+            if 'amount' in df.columns:
+                df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
+                df = df.dropna(subset=['amount'])
+
+            # Convert date columns
+            if 'invoice_date' in df.columns:
+                df['invoice_date'] = pd.to_datetime(df['invoice_date'], errors='coerce')
 
             st.session_state.df = df
+            st.session_state.filtered_df = df
             st.session_state.data_loaded = True
-            st.session_state.processor.load_data(df)
             st.success(f"✅ Loaded {len(df)} invoices")
 
-            # Show file info
             st.info(f"""
             📄 **File Info:**
             - Name: {uploaded_file.name}
@@ -71,21 +120,36 @@ with st.sidebar:
             st.error(f"Error loading file: {e}")
             st.session_state.data_loaded = False
 
-    # Sample data button
     st.markdown("---")
+
+    # Sample data button
     if st.button("📝 Load Sample Data", use_container_width=True):
         sample_path = 'data/sample_invoices.csv'
         if os.path.exists(sample_path):
-            df = pd.read_csv(sample_path)
-            st.session_state.df = df
-            st.session_state.data_loaded = True
-            st.session_state.processor.load_data(df)
-            st.success("✅ Sample data loaded!")
-            st.rerun()
+            try:
+                df = pd.read_csv(sample_path)
+
+                # Ensure amount is numeric
+                if 'amount' in df.columns:
+                    df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
+                    df = df.dropna(subset=['amount'])
+
+                if 'invoice_date' in df.columns:
+                    df['invoice_date'] = pd.to_datetime(df['invoice_date'], errors='coerce')
+
+                st.session_state.df = df
+                st.session_state.filtered_df = df
+                st.session_state.data_loaded = True
+                st.success("✅ Sample data loaded!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error loading sample data: {e}")
         else:
             st.error("Sample data file not found!")
 
-    # Filters (only if data loaded)
+    # ============================================================
+    # FILTERS (Only if data loaded)
+    # ============================================================
     if st.session_state.data_loaded and st.session_state.df is not None:
         st.markdown("---")
         st.header("🔍 Filters")
@@ -110,11 +174,17 @@ with st.sidebar:
                     mask = (df['invoice_date'].dt.date >= date_range[0]) & \
                            (df['invoice_date'].dt.date <= date_range[1])
                     filtered_df = df[mask]
-                    st.session_state.processor.filtered_df = filtered_df
+                    st.session_state.filtered_df = filtered_df
                     st.info(f"Showing {len(filtered_df)} records")
 
-        # Amount filter
+        # ============================================================
+        # ⭐ FIXED: Amount filter with proper numeric handling
+        # ============================================================
         if 'amount' in df.columns:
+            # Ensure amount is numeric (already done, but double-check)
+            df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
+            df = df.dropna(subset=['amount'])
+
             min_amount = float(df['amount'].min())
             max_amount = float(df['amount'].max())
 
@@ -125,26 +195,27 @@ with st.sidebar:
                 value=(min_amount, max_amount)
             )
 
-            filtered_df = st.session_state.processor.filtered_df if hasattr(st.session_state.processor,
-                                                                            'filtered_df') else df
+            filtered_df = st.session_state.filtered_df if st.session_state.filtered_df is not None else df
             filtered_df = filtered_df[
                 (filtered_df['amount'] >= amount_range[0]) &
                 (filtered_df['amount'] <= amount_range[1])
                 ]
-            st.session_state.processor.filtered_df = filtered_df
+            st.session_state.filtered_df = filtered_df
 
-# Main content
+# ============================================================
+# MAIN CONTENT
+# ============================================================
 if st.session_state.data_loaded and st.session_state.df is not None:
-    processor = st.session_state.processor
-    df = processor.filtered_df if hasattr(processor, 'filtered_df') else processor.df
+    df = st.session_state.filtered_df if st.session_state.filtered_df is not None else st.session_state.df
 
     # Create tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📈 Dashboard", "📋 Data Explorer", "📊 Statistics",
-        "📉 Analytics", "💡 Insights"
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📈 Dashboard", "📋 Data Explorer", "📊 Statistics", "💡 Insights"
     ])
 
-    # ==================== TAB 1: DASHBOARD ====================
+    # ============================================================
+    # TAB 1: DASHBOARD
+    # ============================================================
     with tab1:
         st.header("Key Performance Indicators")
 
@@ -252,7 +323,9 @@ if st.session_state.data_loaded and st.session_state.df is not None:
                 fig.update_layout(height=400)
                 st.plotly_chart(fig, use_container_width=True)
 
-    # ==================== TAB 2: DATA EXPLORER ====================
+    # ============================================================
+    # TAB 2: DATA EXPLORER
+    # ============================================================
     with tab2:
         st.header("Invoice Data Explorer")
 
@@ -276,7 +349,6 @@ if st.session_state.data_loaded and st.session_state.df is not None:
 
         # Select columns to display
         if not show_all:
-            # Show only important columns
             important_cols = ['first_name', 'last_name', 'email', 'amount', 'invoice_date',
                               'product_id', 'qty', 'city', 'job']
             available_cols = [col for col in important_cols if col in display_df.columns]
@@ -289,62 +361,74 @@ if st.session_state.data_loaded and st.session_state.df is not None:
         st.markdown("---")
         st.subheader("📥 Export Data")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
 
         with col1:
-            # Export to CSV
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Download as CSV",
                 data=csv_data,
-                file_name=f'invoice_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv',
+                file_name=f'invoice_data_{datetime.now().strftime("%Y%m%d")}.csv',
                 mime='text/csv',
                 use_container_width=True
             )
 
         with col2:
-            # Export to Excel
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='Invoices', index=False)
-                # Add summary sheet
-                summary = pd.DataFrame({
-                    'Metric': ['Total Revenue', 'Average Invoice', 'Total Invoices', 'Unique Customers'],
-                    'Value': [df['amount'].sum(), df['amount'].mean(), len(df), df['email'].nunique()]
-                })
-                summary.to_excel(writer, sheet_name='Summary', index=False)
-
-            excel_data = output.getvalue()
-            st.download_button(
-                label="📥 Download as Excel",
-                data=excel_data,
-                file_name=f'invoice_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                use_container_width=True
-            )
-
-        with col3:
-            # Export filtered data
-            if search_term:
-                filtered_csv = display_df.to_csv(index=False).encode('utf-8')
+            try:
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name='Invoices', index=False)
+                    # Add summary sheet
+                    if 'amount' in df.columns:
+                        summary = pd.DataFrame({
+                            'Metric': ['Total Revenue', 'Average Invoice', 'Total Invoices', 'Unique Customers'],
+                            'Value': [
+                                f"${df['amount'].sum():,.2f}",
+                                f"${df['amount'].mean():,.2f}",
+                                len(df),
+                                df['email'].nunique() if 'email' in df.columns else len(df)
+                            ]
+                        })
+                        summary.to_excel(writer, sheet_name='Summary', index=False)
+                excel_data = output.getvalue()
                 st.download_button(
-                    label="📥 Download Filtered Data",
-                    data=filtered_csv,
-                    file_name=f'filtered_invoices.csv',
-                    mime='text/csv',
+                    label="📥 Download as Excel",
+                    data=excel_data,
+                    file_name=f'invoice_data_{datetime.now().strftime("%Y%m%d")}.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     use_container_width=True
                 )
+            except Exception as e:
+                st.warning("Excel export not available")
 
-    # ==================== TAB 3: STATISTICS ====================
+    # ============================================================
+    # TAB 3: STATISTICS
+    # ============================================================
     with tab3:
         st.header("Statistical Analysis")
 
-        # Summary statistics
-        st.subheader("📊 Descriptive Statistics")
+        if 'amount' in df.columns:
+            # Summary statistics
+            st.subheader("📊 Descriptive Statistics")
+            numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+            if numeric_cols:
+                st.dataframe(df[numeric_cols].describe(), use_container_width=True)
 
-        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-        if numeric_cols:
-            st.dataframe(df[numeric_cols].describe(), use_container_width=True)
+            # Revenue distribution
+            st.subheader("💰 Revenue Distribution")
+            fig = px.histogram(
+                df,
+                x='amount',
+                nbins=50,
+                title='Invoice Amount Distribution',
+                labels={'amount': 'Invoice Amount ($)', 'count': 'Number of Invoices'},
+                color_discrete_sequence=['#1f77b4']
+            )
+            fig.add_vline(x=df['amount'].mean(), line_dash="dash", line_color="red",
+                          annotation_text=f"Mean: ${df['amount'].mean():.2f}")
+            fig.add_vline(x=df['amount'].median(), line_dash="dash", line_color="green",
+                          annotation_text=f"Median: ${df['amount'].median():.2f}")
+            st.plotly_chart(fig, use_container_width=True)
 
         # Missing values
         st.subheader("🔍 Missing Values Analysis")
@@ -361,174 +445,51 @@ if st.session_state.data_loaded and st.session_state.df is not None:
         else:
             st.success("✅ No missing values found in the dataset!")
 
-        # Column information
-        st.subheader("📋 Column Information")
-        col_info = pd.DataFrame({
-            'Column Name': df.columns,
-            'Data Type': df.dtypes.values,
-            'Unique Values': [df[col].nunique() for col in df.columns],
-            'Sample Value': [str(df[col].iloc[0])[:50] if len(df) > 0 else '' for col in df.columns]
-        })
-        st.dataframe(col_info, use_container_width=True)
-
-        # Correlation matrix
-        if len(numeric_cols) >= 2:
-            st.subheader("📈 Correlation Matrix")
-            correlation = df[numeric_cols].corr()
-            fig = px.imshow(
-                correlation,
-                text_auto=True,
-                aspect="auto",
-                title="Feature Correlations",
-                color_continuous_scale='RdBu'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    # ==================== TAB 4: ANALYTICS ====================
+    # ============================================================
+    # TAB 4: INSIGHTS
+    # ============================================================
     with tab4:
-        st.header("Advanced Analytics")
+        st.header("Business Insights")
 
-        # Revenue distribution
-        st.subheader("💰 Revenue Distribution")
         if 'amount' in df.columns:
-            fig = px.histogram(
-                df,
-                x='amount',
-                nbins=50,
-                title='Invoice Amount Distribution',
-                labels={'amount': 'Invoice Amount ($)', 'count': 'Number of Invoices'},
-                color_discrete_sequence=['#1f77b4']
-            )
-            fig.add_vline(x=df['amount'].mean(), line_dash="dash", line_color="red",
-                          annotation_text=f"Mean: ${df['amount'].mean():.2f}")
-            fig.add_vline(x=df['amount'].median(), line_dash="dash", line_color="green",
-                          annotation_text=f"Median: ${df['amount'].median():.2f}")
-            st.plotly_chart(fig, use_container_width=True)
+            total_revenue = df['amount'].sum()
+            avg_invoice = df['amount'].mean()
+            total_invoices = len(df)
+            unique_customers = df['email'].nunique() if 'email' in df.columns else len(df)
 
-        # Time series decomposition
-        if 'invoice_date' in df.columns and 'amount' in df.columns:
-            st.subheader("📅 Time Series Analysis")
+            insights = [
+                f"💰 **Total Revenue**: ${total_revenue:,.2f} from {total_invoices:,} invoices",
+                f"📊 **Average Invoice**: ${avg_invoice:.2f}",
+                f"👥 **Customer Base**: {unique_customers:,} unique customers"
+            ]
 
-            df['invoice_date'] = pd.to_datetime(df['invoice_date'])
-            df['year_month'] = df['invoice_date'].dt.to_period('M').astype(str)
-            monthly_revenue = df.groupby('year_month')['amount'].sum().reset_index()
+            if 'product_id' in df.columns:
+                top_product = df.groupby('product_id')['amount'].sum().idxmax()
+                top_revenue = df.groupby('product_id')['amount'].sum().max()
+                insights.append(f"🏆 **Best Product**: Product {top_product} generates ${top_revenue:,.2f}")
 
-            fig = px.line(
-                monthly_revenue,
-                x='year_month',
-                y='amount',
-                title='Monthly Revenue Trend',
-                labels={'year_month': 'Month', 'amount': 'Revenue ($)'},
-                markers=True
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            if 'city' in df.columns:
+                top_city = df.groupby('city')['amount'].sum().idxmax()
+                top_city_revenue = df.groupby('city')['amount'].sum().max()
+                insights.append(f"📍 **Top Market**: {top_city} generates ${top_city_revenue:,.2f}")
 
-            # Seasonality
-            col1, col2 = st.columns(2)
-
-            with col1:
-                df['month'] = df['invoice_date'].dt.month_name()
-                monthly_avg = df.groupby('month')['amount'].mean().sort_index()
-                fig = px.bar(
-                    x=monthly_avg.index,
-                    y=monthly_avg.values,
-                    title='Average Revenue by Month',
-                    labels={'x': 'Month', 'y': 'Average Revenue ($)'}
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-            with col2:
-                df['day_of_week'] = df['invoice_date'].dt.day_name()
-                daily_avg = df.groupby('day_of_week')['amount'].mean()
-                # Order days
-                days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                daily_avg = daily_avg.reindex([d for d in days_order if d in daily_avg.index])
-
-                fig = px.bar(
-                    x=daily_avg.index,
-                    y=daily_avg.values,
-                    title='Average Revenue by Day of Week',
-                    labels={'x': 'Day', 'y': 'Average Revenue ($)'}
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-        # Customer segmentation
-        if 'email' in df.columns and 'amount' in df.columns:
-            st.subheader("👥 Customer Segmentation")
-
-            customer_value = df.groupby('email')['amount'].sum().sort_values(ascending=False)
-
-            # Create segments
-            segments = pd.cut(
-                customer_value,
-                bins=[0, 100, 500, 1000, float('inf')],
-                labels=['Bronze (<$100)', 'Silver ($100-$500)', 'Gold ($500-$1000)', 'Platinum ($1000+)']
-            )
-
-            segment_counts = segments.value_counts()
-            fig = px.pie(
-                values=segment_counts.values,
-                names=segment_counts.index,
-                title='Customer Segmentation by Spending',
-                color_discrete_sequence=px.colors.qualitative.Set2
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Show top customers
-            st.subheader("🏆 Top 10 Customers")
-            top_customers = df.groupby(['first_name', 'last_name', 'email']).agg({
-                'amount': ['sum', 'mean', 'count'],
-                'qty': 'sum' if 'qty' in df.columns else 'count'
-            }).round(2)
-            top_customers.columns = ['Total Spent', 'Average Order', 'Order Count', 'Total Items']
-            top_customers = top_customers.sort_values('Total Spent', ascending=False).head(10)
-            st.dataframe(top_customers, use_container_width=True)
-
-    # ==================== TAB 5: INSIGHTS ====================
-    with tab5:
-        st.header("Business Insights & Recommendations")
-
-        # Generate insights
-        insights = processor.generate_insights()
-
-        for insight in insights:
-            st.info(insight)
+            st.success("📌 Key Insights:")
+            for insight in insights:
+                st.markdown(f"- {insight}")
 
         st.markdown("---")
 
         # Recommendations
         st.subheader("💡 Recommendations")
-
         recommendations = [
-            "📌 **Focus on Top Products**: Invest marketing budget in top 20% of products",
-            "📌 **Customer Retention**: Implement loyalty program for Platinum and Gold customers",
-            "📌 **Geographic Expansion**: Consider expanding to cities with highest revenue growth",
-            "📌 **Seasonal Planning**: Prepare inventory for peak months identified in analysis",
-            "📌 **Price Optimization**: Review pricing strategy for low-margin products"
+            "📌 **Focus on top products**: Invest marketing budget in best-selling items",
+            "📌 **Customer retention**: Implement loyalty programs for repeat customers",
+            "📌 **Geographic expansion**: Consider expanding to high-revenue cities",
+            "📌 **Seasonal planning**: Prepare inventory for peak months",
+            "📌 **Price optimization**: Review pricing strategy for products"
         ]
-
         for rec in recommendations:
-            st.markdown(rec)
-
-        st.markdown("---")
-
-        # Export report
-        st.subheader("📄 Generate Report")
-
-        if st.button("Generate PDF Report", use_container_width=True):
-            st.info("PDF report generation - Coming soon!")
-
-        # Share insights
-        st.subheader("🔗 Share Analysis")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**📊 Dashboard Link:**")
-            st.code("https://your-streamlit-app-url.com", language="text")
-
-        with col2:
-            st.markdown("**📁 Data Export:**")
-            st.markdown("Use the export buttons in Data Explorer tab")
+            st.markdown(f"- {rec}")
 
 else:
     # Welcome screen
@@ -550,8 +511,8 @@ else:
         st.markdown("""
         ### 📊 Features
         - Interactive dashboard
-        - Advanced analytics
-        - Customer segmentation
+        - Revenue analytics
+        - Customer insights
         - Export to Excel/CSV
         """)
 
@@ -563,9 +524,11 @@ else:
         example invoices
         """)
 
-# Footer
+# ============================================================
+# FOOTER
+# ============================================================
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; color: gray;'>Invoice Data Extractor | Built with Streamlit | Tahir Mahmood | AI Enginner</p>",
+    "<p style='text-align: center; color: gray;'>Invoice Data Extractor | Created by Tahir Mahmood | © 2026</p>",
     unsafe_allow_html=True
 )
