@@ -1,6 +1,7 @@
 """
-Invoice Data Extractor - Main Application
-A complete invoice analysis tool with Streamlit
+Invoice Data Extractor - Professional Edition
+Created by: Tahir Mahmood
+Year: 2026
 """
 
 import streamlit as st
@@ -11,67 +12,229 @@ from datetime import datetime
 import io
 import sys
 import os
-
-# Add utils to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import numpy as np
 
 # Page configuration
 st.set_page_config(
-    page_title="Invoice Data Extractor - Tahir Mahmood",
+    page_title="Professional Invoice Analyzer - Tahir Mahmood",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# ============================================================
+# CUSTOM CSS - Professional Styling
+# ============================================================
 st.markdown("""
 <style>
+    /* Main Header */
     .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 20px;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        padding: 30px;
+        border-radius: 15px;
         color: white;
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     }
+    .main-header h1 {
+        font-size: 36px;
+        margin: 0;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+    .main-header p {
+        margin: 8px 0 0 0;
+        opacity: 0.9;
+        font-size: 16px;
+    }
+    .main-header .subtitle {
+        font-size: 13px;
+        opacity: 0.7;
+        margin-top: 10px;
+    }
+
+    /* Professional Metric Cards */
     .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 15px;
-        border-radius: 10px;
-        color: white;
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
         text-align: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        border-left: 4px solid #1a1a2e;
+        transition: all 0.3s;
+        height: 100%;
     }
+    .metric-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    }
+    .metric-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #1a1a2e;
+    }
+    .metric-label {
+        font-size: 13px;
+        color: #666;
+        margin-top: 5px;
+        font-weight: 500;
+    }
+    .metric-delta {
+        font-size: 12px;
+        margin-top: 3px;
+        font-weight: 500;
+    }
+    .metric-positive { color: #2ecc71; }
+    .metric-negative { color: #e74c3c; }
+    .metric-neutral { color: #f39c12; }
+
+    /* Recommendation Cards */
+    .rec-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin: 12px 0;
+        border-left: 5px solid #1a1a2e;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: all 0.3s;
+    }
+    .rec-card:hover {
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transform: translateX(5px);
+    }
+    .rec-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .rec-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1a1a2e;
+    }
+    .rec-icon {
+        font-size: 22px;
+        margin-right: 10px;
+    }
+    .rec-description {
+        color: #444;
+        font-size: 14px;
+        margin: 10px 0 8px 0;
+        line-height: 1.6;
+    }
+    .rec-action {
+        font-size: 13px;
+        color: #0f3460;
+        font-weight: 600;
+        margin-top: 8px;
+        padding: 8px 15px;
+        background: #f0f4ff;
+        border-radius: 8px;
+        display: inline-block;
+    }
+    .rec-priority-high {
+        border-left-color: #e74c3c;
+    }
+    .rec-priority-medium {
+        border-left-color: #f39c12;
+    }
+    .rec-priority-low {
+        border-left-color: #2ecc71;
+    }
+    
+    /* Priority Badges */
+    .priority-badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        display: inline-block;
+    }
+    .priority-high {
+        background: #fde8e8;
+        color: #e74c3c;
+    }
+    .priority-medium {
+        background: #fef3e2;
+        color: #f39c12;
+    }
+    .priority-low {
+        background: #e8f8ed;
+        color: #2ecc71;
+    }
+
+    /* Category Tags */
+    .category-tag {
+        padding: 2px 10px;
+        border-radius: 15px;
+        font-size: 11px;
+        font-weight: 500;
+        background: #eef2f7;
+        color: #555;
+    }
+
+    /* Download Button */
+    .download-btn {
+        background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+        color: white;
+        padding: 12px 30px;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-decoration: none;
+        display: inline-block;
+    }
+    .download-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(26, 26, 46, 0.3);
+    }
+
+    /* Responsive */
     @media (max-width: 768px) {
+        .main-header h1 { font-size: 24px; }
+        .metric-value { font-size: 22px; }
         .stTabs [data-baseweb="tab"] {
             font-size: 12px;
             padding: 4px 8px;
         }
+        .rec-title { font-size: 14px; }
+        .rec-header { flex-direction: column; align-items: flex-start; }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Header
+# ============================================================
+# HEADER
+# ============================================================
 st.markdown("""
 <div class="main-header">
-    <h1>📊 Invoice Data Extractor & Analyzer</h1>
-    <p>Upload CSV/Excel and get instant business insights</p>
-    <p style="font-size: 14px;">Created by Tahir Mahmood | © 2026</p>
+    <h1>📊 Professional Invoice Analyzer</h1>
+    <p>Data-Driven Insights for Business Growth</p>
+    <div class="subtitle">Created by Tahir Mahmood | © 2026 | v3.0</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Initialize session state
+# ============================================================
+# SESSION STATE
+# ============================================================
 if 'df' not in st.session_state:
     st.session_state.df = None
 if 'filtered_df' not in st.session_state:
     st.session_state.filtered_df = None
 if 'data_loaded' not in st.session_state:
     st.session_state.data_loaded = False
+if 'recommendations' not in st.session_state:
+    st.session_state.recommendations = []
 
 # ============================================================
 # SIDEBAR
 # ============================================================
 with st.sidebar:
-    st.header("📁 Data Source")
+    st.markdown("### 📁 Data Source")
 
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file",
@@ -93,20 +256,28 @@ with st.sidebar:
             else:
                 df = pd.read_excel(uploaded_file, engine='openpyxl')
 
-            # ============================================================
-            # ⭐ FIX: Ensure amount is numeric
-            # ============================================================
+            # Data cleaning
             if 'amount' in df.columns:
                 df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
                 df = df.dropna(subset=['amount'])
 
-            # Convert date columns
             if 'invoice_date' in df.columns:
                 df['invoice_date'] = pd.to_datetime(df['invoice_date'], errors='coerce')
+
+            # Create customer name if not exists
+            if 'customer_name' not in df.columns:
+                if 'first_name' in df.columns and 'last_name' in df.columns:
+                    df['customer_name'] = df['first_name'] + ' ' + df['last_name']
+                else:
+                    df['customer_name'] = df.index.astype(str)
 
             st.session_state.df = df
             st.session_state.filtered_df = df
             st.session_state.data_loaded = True
+
+            # Generate recommendations
+            st.session_state.recommendations = generate_business_recommendations(df)
+
             st.success(f"✅ Loaded {len(df)} invoices")
 
             st.info(f"""
@@ -122,14 +293,12 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Sample data button
     if st.button("📝 Load Sample Data", use_container_width=True):
         sample_path = 'data/sample_invoices.csv'
         if os.path.exists(sample_path):
             try:
                 df = pd.read_csv(sample_path)
 
-                # Ensure amount is numeric
                 if 'amount' in df.columns:
                     df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
                     df = df.dropna(subset=['amount'])
@@ -137,9 +306,16 @@ with st.sidebar:
                 if 'invoice_date' in df.columns:
                     df['invoice_date'] = pd.to_datetime(df['invoice_date'], errors='coerce')
 
+                if 'customer_name' not in df.columns:
+                    if 'first_name' in df.columns and 'last_name' in df.columns:
+                        df['customer_name'] = df['first_name'] + ' ' + df['last_name']
+                    else:
+                        df['customer_name'] = df.index.astype(str)
+
                 st.session_state.df = df
                 st.session_state.filtered_df = df
                 st.session_state.data_loaded = True
+                st.session_state.recommendations = generate_business_recommendations(df)
                 st.success("✅ Sample data loaded!")
                 st.rerun()
             except Exception as e:
@@ -147,60 +323,469 @@ with st.sidebar:
         else:
             st.error("Sample data file not found!")
 
-    # ============================================================
-    # FILTERS (Only if data loaded)
-    # ============================================================
+    st.markdown("---")
+
+    # Quick Stats in Sidebar
     if st.session_state.data_loaded and st.session_state.df is not None:
-        st.markdown("---")
-        st.header("🔍 Filters")
-
         df = st.session_state.df
+        st.markdown("### 📊 Quick Stats")
+        st.metric("Total Revenue", f"${df['amount'].sum():,.2f}")
+        st.metric("Total Invoices", len(df))
 
-        # Date filter
-        if 'invoice_date' in df.columns:
-            df['invoice_date'] = pd.to_datetime(df['invoice_date'], errors='coerce')
-            min_date = df['invoice_date'].min()
-            max_date = df['invoice_date'].max()
+        if 'email' in df.columns:
+            st.metric("Unique Customers", df['email'].nunique())
 
-            if pd.notnull(min_date) and pd.notnull(max_date):
-                date_range = st.date_input(
-                    "Date Range",
-                    value=[min_date.date(), max_date.date()],
-                    min_value=min_date.date(),
-                    max_value=max_date.date()
-                )
+        if 'product_id' in df.columns:
+            st.metric("Unique Products", df['product_id'].nunique())
 
-                if len(date_range) == 2:
-                    mask = (df['invoice_date'].dt.date >= date_range[0]) & \
-                           (df['invoice_date'].dt.date <= date_range[1])
-                    filtered_df = df[mask]
-                    st.session_state.filtered_df = filtered_df
-                    st.info(f"Showing {len(filtered_df)} records")
+    st.markdown("---")
+    st.markdown("""
+    <div style="font-size: 11px; color: #999; text-align: center;">
+        <b>Professional Invoice Analyzer</b><br>
+        Built with ❤️ by Tahir Mahmood
+    </div>
+    """, unsafe_allow_html=True)
 
-        # ============================================================
-        # ⭐ FIXED: Amount filter with proper numeric handling
-        # ============================================================
-        if 'amount' in df.columns:
-            # Ensure amount is numeric (already done, but double-check)
-            df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
-            df = df.dropna(subset=['amount'])
+# ============================================================
+# RECOMMENDATION ENGINE
+# ============================================================
+def generate_business_recommendations(df):
+    """
+    Generate comprehensive business recommendations
+    based on invoice data analysis
+    """
+    recommendations = []
 
-            min_amount = float(df['amount'].min())
-            max_amount = float(df['amount'].max())
+    # Calculate key metrics
+    total_revenue = df['amount'].sum()
+    avg_invoice = df['amount'].mean()
+    total_invoices = len(df)
 
-            amount_range = st.slider(
-                "Amount Range ($)",
-                min_value=min_amount,
-                max_value=max_amount,
-                value=(min_amount, max_amount)
+    # ============================================================
+    # 1. REVENUE & SALES OPTIMIZATION
+    # ============================================================
+
+    if 'email' in df.columns:
+        revenue_per_customer = df.groupby('email')['amount'].sum()
+        unique_customers = len(revenue_per_customer)
+        avg_revenue_per_customer = revenue_per_customer.mean()
+        top_customers = revenue_per_customer.nlargest(10)
+        top_customer_share = top_customers.sum() / total_revenue * 100
+
+        if top_customer_share > 50:
+            recommendations.append({
+                'category': '💰 Revenue Optimization',
+                'title': 'High Customer Concentration Risk',
+                'description': f'Top 10 customers contribute {top_customer_share:.1f}% of total revenue ({top_customers.sum():,.2f}). This creates dependency risk. Diversify your customer base through targeted acquisition campaigns.',
+                'priority': 'high',
+                'action': 'Implement customer acquisition strategy',
+                'icon': '🎯'
+            })
+        else:
+            recommendations.append({
+                'category': '💰 Revenue Optimization',
+                'title': 'Healthy Customer Distribution',
+                'description': f'Revenue is well-distributed across {unique_customers} customers. Average revenue per customer is ${avg_revenue_per_customer:.2f}. Consider upselling to mid-tier customers to increase this metric.',
+                'priority': 'medium',
+                'action': 'Launch upsell campaigns',
+                'icon': '📈'
+            })
+
+    # ============================================================
+    # 2. PRODUCT PERFORMANCE
+    # ============================================================
+
+    if 'product_id' in df.columns:
+        product_revenue = df.groupby('product_id')['amount'].sum()
+        top_products = product_revenue.nlargest(5)
+        bottom_products = product_revenue.nsmallest(5)
+        top_product_share = top_products.sum() / total_revenue * 100
+        unique_products = len(product_revenue)
+
+        if len(top_products) > 0:
+            recommendations.append({
+                'category': '🏷️ Product Strategy',
+                'title': 'Star Products Identification',
+                'description': f'Top 5 products generate {top_product_share:.1f}% of revenue (${top_products.sum():,.2f}). These are your star performers: {", ".join([f"Product {p}" for p in top_products.index[:3]])}. Increase inventory and marketing for these products.',
+                'priority': 'high',
+                'action': 'Invest in star products',
+                'icon': '⭐'
+            })
+
+        if len(bottom_products) > 0 and bottom_products.sum() > 0:
+            if len(bottom_products) >= 5:
+                recommendations.append({
+                    'category': '🏷️ Product Strategy',
+                    'title': 'Underperforming Products Review',
+                    'description': f'Bottom 5 products generate only ${bottom_products.sum():.2f} in revenue. Consider discontinuation, rebranding, or bundle offers with top products to clear inventory.',
+                    'priority': 'medium',
+                    'action': 'Review underperforming products',
+                    'icon': '📉'
+                })
+
+        if unique_products >= 3:
+            recommendations.append({
+                'category': '🏷️ Product Strategy',
+                'title': 'Product Bundling Opportunity',
+                'description': f'With {unique_products} products in your portfolio, create strategic bundles combining popular products with complementary items. This can increase average order value by 15-30%.',
+                'priority': 'medium',
+                'action': 'Create product bundles',
+                'icon': '📦'
+            })
+
+    # ============================================================
+    # 3. CUSTOMER INSIGHTS
+    # ============================================================
+
+    if 'email' in df.columns:
+        customer_spending = df.groupby('email')['amount'].sum()
+        unique_customers = len(customer_spending)
+
+        # Customer segmentation
+        if unique_customers > 0:
+            segments = pd.cut(
+                customer_spending,
+                bins=[0, 100, 500, 1000, float('inf')],
+                labels=['Bronze (<$100)', 'Silver ($100-$500)',
+                       'Gold ($500-$1000)', 'Platinum ($1000+)']
+            )
+            segment_counts = segments.value_counts()
+
+            seg_text = []
+            for seg, count in segment_counts.items():
+                emoji = {'Bronze (<$100)': '🥉', 'Silver ($100-$500)': '🥈',
+                        'Gold ($500-$1000)': '🥇', 'Platinum ($1000+)': '💎'}.get(seg, '📊')
+                seg_text.append(f"{emoji} {seg}: {count} customers")
+
+            recommendations.append({
+                'category': '👥 Customer Segmentation',
+                'title': 'Customer Value Distribution',
+                'description': '\n'.join(seg_text) + f'\n\n**Action:** Create targeted marketing campaigns for each segment. Focus on moving Silver to Gold and Gold to Platinum.',
+                'priority': 'high',
+                'action': 'Implement segment-specific marketing',
+                'icon': '👥'
+            })
+
+        # Loyalty program
+        if segment_counts.get('Gold ($500-$1000)', 0) > 0 or segment_counts.get('Platinum ($1000+)', 0) > 0:
+            gold_platinum = segment_counts.get('Gold ($500-$1000)', 0) + segment_counts.get('Platinum ($1000+)', 0)
+            recommendations.append({
+                'category': '👥 Customer Retention',
+                'title': 'Loyalty Program Implementation',
+                'description': f'You have {gold_platinum} high-value customers (Gold + Platinum). Implement a tiered loyalty program with exclusive benefits like early access, VIP support, and special discounts to retain these valuable customers.',
+                'priority': 'high',
+                'action': 'Launch loyalty program',
+                'icon': '💎'
+            })
+
+        # Repeat customer analysis
+        order_counts = df.groupby('email').size()
+        repeat_customers = (order_counts > 1).sum()
+        repeat_rate = repeat_customers / unique_customers * 100 if unique_customers > 0 else 0
+
+        if repeat_rate < 30:
+            recommendations.append({
+                'category': '👥 Customer Retention',
+                'title': 'Low Repeat Customer Rate',
+                'description': f'Only {repeat_rate:.1f}% of customers are repeat buyers. Implement post-purchase email campaigns, subscription options, and referral programs. A 5% increase in retention can increase profits by 25-95%.',
+                'priority': 'high',
+                'action': 'Improve customer retention',
+                'icon': '🔄'
+            })
+        else:
+            recommendations.append({
+                'category': '👥 Customer Retention',
+                'title': 'Good Customer Retention Rate',
+                'description': f'{repeat_rate:.1f}% of customers return for repeat purchases. Continue nurturing these relationships with personalized offers and loyalty rewards.',
+                'priority': 'low',
+                'action': 'Maintain retention programs',
+                'icon': '✅'
+            })
+
+    # ============================================================
+    # 4. GEOGRAPHIC EXPANSION
+    # ============================================================
+
+    if 'city' in df.columns:
+        city_revenue = df.groupby('city')['amount'].sum().sort_values(ascending=False)
+        top_cities = city_revenue.head(5)
+        top_city_share = top_cities.sum() / total_revenue * 100 if total_revenue > 0 else 0
+        unique_cities = len(city_revenue)
+
+        if len(top_cities) > 0:
+            recommendations.append({
+                'category': '📍 Geographic Strategy',
+                'title': 'Top Performing Markets',
+                'description': f'Top 5 cities generate {top_city_share:.1f}% of revenue (${top_cities.sum():,.2f}). Key markets: {", ".join(top_cities.index[:3])}. Invest in local marketing and establish partnerships in these areas.',
+                'priority': 'medium',
+                'action': 'Expand in top cities',
+                'icon': '🏙️'
+            })
+
+        # Expansion opportunities
+        if len(city_revenue) > 0:
+            recommendations.append({
+                'category': '📍 Geographic Strategy',
+                'title': 'Market Expansion Opportunities',
+                'description': f'You currently operate in {unique_cities} cities. Consider expanding to cities with similar demographics to your top performers. New markets can increase revenue by 20-40%.',
+                'priority': 'medium',
+                'action': 'Explore new markets',
+                'icon': '🌍'
+            })
+
+    # ============================================================
+    # 5. SEASONAL & TIME-BASED INSIGHTS
+    # ============================================================
+
+    if 'invoice_date' in df.columns:
+        df_copy = df.copy()
+        df_copy['month'] = df_copy['invoice_date'].dt.month
+        df_copy['quarter'] = df_copy['invoice_date'].dt.quarter
+        df_copy['day_of_week'] = df_copy['invoice_date'].dt.day_name()
+
+        # Monthly analysis
+        monthly_revenue = df_copy.groupby('month')['amount'].sum()
+        if len(monthly_revenue) > 0:
+            best_month = monthly_revenue.idxmax()
+            best_month_revenue = monthly_revenue.max()
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+            recommendations.append({
+                'category': '📅 Seasonal Planning',
+                'title': 'Peak Season Identified',
+                'description': f'**{month_names[best_month-1]}** is your peak month with ${best_month_revenue:,.2f} in revenue. Plan inventory, staffing, and marketing campaigns around this period. Prepare for seasonal fluctuations with advance planning.',
+                'priority': 'high',
+                'action': 'Prepare for peak season',
+                'icon': '📊'
+            })
+
+        # Day of week analysis
+        daily_revenue = df_copy.groupby('day_of_week')['amount'].mean()
+        if len(daily_revenue) > 0:
+            best_day = daily_revenue.idxmax()
+            best_day_revenue = daily_revenue.max()
+
+            recommendations.append({
+                'category': '📅 Seasonal Planning',
+                'title': 'Optimal Sales Day',
+                'description': f'**{best_day}** has the highest average revenue (${best_day_revenue:.2f}). Consider running targeted promotions and flash sales on this day to maximize revenue.',
+                'priority': 'medium',
+                'action': 'Optimize for best days',
+                'icon': '📆'
+            })
+
+        # Quarterly analysis
+        quarterly_revenue = df_copy.groupby('quarter')['amount'].sum()
+        if len(quarterly_revenue) > 0:
+            best_quarter = quarterly_revenue.idxmax()
+            best_quarter_revenue = quarterly_revenue.max()
+
+            recommendations.append({
+                'category': '📅 Seasonal Planning',
+                'title': 'Quarterly Performance',
+                'description': f'Q{best_quarter} is your strongest quarter with ${best_quarter_revenue:,.2f} in revenue. Plan major initiatives and product launches around this period.',
+                'priority': 'medium',
+                'action': 'Align strategy with quarterly trends',
+                'icon': '📈'
+            })
+
+    # ============================================================
+    # 6. PRICING & MARGIN OPTIMIZATION
+    # ============================================================
+
+    if 'amount' in df.columns and 'qty' in df.columns:
+        df_copy = df.copy()
+        df_copy['unit_price'] = df_copy['amount'] / df_copy['qty']
+        avg_unit_price = df_copy['unit_price'].mean()
+        min_unit_price = df_copy['unit_price'].min()
+        max_unit_price = df_copy['unit_price'].max()
+        std_unit_price = df_copy['unit_price'].std()
+
+        recommendations.append({
+            'category': '💲 Pricing Strategy',
+            'title': 'Price Range Analysis',
+            'description': f'''
+            **Pricing Overview:**
+            - Average Unit Price: ${avg_unit_price:.2f}
+            - Price Range: ${min_unit_price:.2f} - ${max_unit_price:.2f}
+            - Standard Deviation: ${std_unit_price:.2f}
+            
+            **Recommendation:** Products at the lower price range may have room for increase. Test premium pricing for top-performing products. Consider tiered pricing for bulk purchases.
+            ''',
+            'priority': 'medium',
+            'action': 'Optimize pricing strategy',
+            'icon': '💲'
+        })
+
+        # Discount/Volume analysis
+        discount_threshold = df_copy['qty'].mean() * 0.5
+        high_volume = df_copy[df_copy['qty'] > discount_threshold]
+        if len(high_volume) > 0:
+            recommendations.append({
+                'category': '💲 Pricing Strategy',
+                'title': 'Volume Discount Opportunity',
+                'description': f'{len(high_volume)} transactions ({len(high_volume)/len(df)*100:.1f}%) are high-volume orders. Consider implementing a volume-based discount program to encourage larger purchases.',
+                'priority': 'medium',
+                'action': 'Implement volume discounts',
+                'icon': '🏷️'
+            })
+
+    # ============================================================
+    # 7. OPERATIONAL EFFICIENCY
+    # ============================================================
+
+    if 'qty' in df.columns:
+        avg_qty = df['qty'].mean()
+        max_qty = df['qty'].max()
+
+        recommendations.append({
+            'category': '⚙️ Operational Efficiency',
+            'title': 'Order Size Optimization',
+            'description': f'Average order quantity is {avg_qty:.1f} units (max: {max_qty}). Encourage larger orders through free shipping thresholds, bundle deals, and volume discounts to increase average order value.',
+            'priority': 'low',
+            'action': 'Optimize order sizes',
+            'icon': '📦'
+        })
+
+    # ============================================================
+    # 8. DIGITAL MARKETING
+    # ============================================================
+
+    if 'email' in df.columns:
+        unique_customers = df['email'].nunique()
+
+        recommendations.append({
+            'category': '📢 Digital Marketing',
+            'title': 'Email Marketing Strategy',
+            'description': f'You have {unique_customers} customer emails. Create a segmented email marketing strategy with personalized product recommendations, abandoned cart recovery, and win-back campaigns for lapsed customers.',
+            'priority': 'medium',
+            'action': 'Launch email campaigns',
+            'icon': '📧'
+        })
+
+        # Social media suggestion
+        recommendations.append({
+            'category': '📢 Digital Marketing',
+            'title': 'Social Proof & Testimonials',
+            'description': 'Leverage your best customer reviews and testimonials in marketing materials. Showcase top products with customer feedback to build trust and increase conversion rates.',
+            'priority': 'low',
+            'action': 'Collect and share testimonials',
+            'icon': '⭐'
+        })
+
+    # ============================================================
+    # 9. CUSTOMER SERVICE
+    # ============================================================
+
+    if 'amount' in df.columns:
+        small_orders = df[df['amount'] < df['amount'].quantile(0.1)]
+        if len(small_orders) > 0:
+            recommendations.append({
+                'category': '🛠️ Customer Service',
+                'title': 'Small Order Analysis',
+                'description': f'{len(small_orders)} orders ({len(small_orders)/len(df)*100:.1f}%) are below the 10th percentile (${df["amount"].quantile(0.1):.2f}). Consider offering free shipping thresholds, minimum order values, or bundle deals to increase order value.',
+                'priority': 'medium',
+                'action': 'Optimize small orders',
+                'icon': '🛍️'
+            })
+
+    # ============================================================
+    # 10. INVENTORY & SUPPLY CHAIN
+    # ============================================================
+
+    if 'product_id' in df.columns and 'qty' in df.columns:
+        top_products_qty = df.groupby('product_id')['qty'].sum().nlargest(5)
+
+        if len(top_products_qty) > 0:
+            recommendations.append({
+                'category': '📦 Inventory Management',
+                'title': 'Inventory Planning',
+                'description': f'Top-selling products: {", ".join([f"Product {p}" for p in top_products_qty.index[:3]])}. Maintain optimal stock levels for these products. Implement demand forecasting to prevent stockouts and overstock.',
+                'priority': 'high',
+                'action': 'Optimize inventory levels',
+                'icon': '📦'
+            })
+
+    # ============================================================
+    # 11. FINANCIAL INSIGHTS
+    # ============================================================
+
+    if 'amount' in df.columns:
+        # Revenue growth suggestion
+        recommendations.append({
+            'category': '💰 Financial Insights',
+            'title': 'Revenue Growth Strategy',
+            'description': f'Current revenue: ${total_revenue:,.2f} from {total_invoices} transactions. Average invoice: ${avg_invoice:.2f}. Focus on increasing average order value and customer lifetime value.',
+            'priority': 'medium',
+            'action': 'Implement growth strategies',
+            'icon': '📊'
+        })
+
+    # ============================================================
+    # 12. COMPETITIVE ADVANTAGE
+    # ============================================================
+
+    if 'email' in df.columns:
+        unique_customers = df['email'].nunique()
+        avg_transactions_per_customer = total_invoices / unique_customers if unique_customers > 0 else 0
+
+        recommendations.append({
+            'category': '🏆 Competitive Advantage',
+            'title': 'Customer Experience Enhancement',
+            'description': f'With {unique_customers} customers averaging {avg_transactions_per_customer:.1f} transactions each, focus on enhancing customer experience through personalization, faster delivery, and better communication.',
+            'priority': 'low',
+            'action': 'Improve customer experience',
+            'icon': '🏆'
+        })
+
+    return recommendations
+
+# ============================================================
+# FILTERS
+# ============================================================
+if st.session_state.data_loaded and st.session_state.df is not None:
+    df = st.session_state.df
+
+    # Date filter
+    if 'invoice_date' in df.columns and len(df) > 0:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 🔍 Filters")
+
+        min_date = df['invoice_date'].min()
+        max_date = df['invoice_date'].max()
+
+        if pd.notnull(min_date) and pd.notnull(max_date):
+            date_range = st.sidebar.date_input(
+                "Date Range",
+                value=[min_date.date(), max_date.date()],
+                min_value=min_date.date(),
+                max_value=max_date.date()
             )
 
-            filtered_df = st.session_state.filtered_df if st.session_state.filtered_df is not None else df
-            filtered_df = filtered_df[
-                (filtered_df['amount'] >= amount_range[0]) &
-                (filtered_df['amount'] <= amount_range[1])
-                ]
-            st.session_state.filtered_df = filtered_df
+            if len(date_range) == 2:
+                mask = (df['invoice_date'].dt.date >= date_range[0]) & \
+                       (df['invoice_date'].dt.date <= date_range[1])
+                st.session_state.filtered_df = df[mask]
+
+    # Amount filter
+    if 'amount' in df.columns:
+        min_amount = float(df['amount'].min())
+        max_amount = float(df['amount'].max())
+
+        amount_range = st.sidebar.slider(
+            "Amount Range ($)",
+            min_value=min_amount,
+            max_value=max_amount,
+            value=(min_amount, max_amount)
+        )
+
+        filtered_df = st.session_state.filtered_df if st.session_state.filtered_df is not None else df
+        filtered_df = filtered_df[
+            (filtered_df['amount'] >= amount_range[0]) &
+            (filtered_df['amount'] <= amount_range[1])
+        ]
+        st.session_state.filtered_df = filtered_df
 
 # ============================================================
 # MAIN CONTENT
@@ -209,8 +794,9 @@ if st.session_state.data_loaded and st.session_state.df is not None:
     df = st.session_state.filtered_df if st.session_state.filtered_df is not None else st.session_state.df
 
     # Create tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📈 Dashboard", "📋 Data Explorer", "📊 Statistics", "💡 Insights"
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📈 Dashboard", "📋 Data Explorer", "📊 Analytics",
+        "💡 Recommendations", "📥 Export"
     ])
 
     # ============================================================
@@ -224,32 +810,40 @@ if st.session_state.data_loaded and st.session_state.df is not None:
 
         with col1:
             total_revenue = df['amount'].sum() if 'amount' in df.columns else 0
-            st.metric(
-                label="💰 Total Revenue",
-                value=f"${total_revenue:,.2f}",
-                delta=f"{len(df)} invoices"
-            )
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-value">${total_revenue:,.2f}</div>
+                <div class="metric-label">💰 Total Revenue</div>
+                <div class="metric-delta">{len(df)} invoices</div>
+            </div>
+            """, unsafe_allow_html=True)
 
         with col2:
             avg_invoice = df['amount'].mean() if 'amount' in df.columns else 0
-            st.metric(
-                label="📊 Average Invoice",
-                value=f"${avg_invoice:,.2f}"
-            )
+            st.markdown(f"""
+            <div class="metric-card" style="border-left-color: #2ecc71;">
+                <div class="metric-value">${avg_invoice:,.2f}</div>
+                <div class="metric-label">📊 Average Invoice</div>
+            </div>
+            """, unsafe_allow_html=True)
 
         with col3:
             unique_customers = df['email'].nunique() if 'email' in df.columns else len(df)
-            st.metric(
-                label="👥 Unique Customers",
-                value=f"{unique_customers:,}"
-            )
+            st.markdown(f"""
+            <div class="metric-card" style="border-left-color: #f39c12;">
+                <div class="metric-value">{unique_customers:,}</div>
+                <div class="metric-label">👥 Unique Customers</div>
+            </div>
+            """, unsafe_allow_html=True)
 
         with col4:
             total_quantity = df['qty'].sum() if 'qty' in df.columns else 0
-            st.metric(
-                label="📦 Total Items Sold",
-                value=f"{total_quantity:,}"
-            )
+            st.markdown(f"""
+            <div class="metric-card" style="border-left-color: #9b59b6;">
+                <div class="metric-value">{total_quantity:,}</div>
+                <div class="metric-label">📦 Total Items Sold</div>
+            </div>
+            """, unsafe_allow_html=True)
 
         st.markdown("---")
 
@@ -266,8 +860,11 @@ if st.session_state.data_loaded and st.session_state.df is not None:
                     orientation='h',
                     title='Top 10 Products',
                     labels={'x': 'Revenue ($)', 'y': 'Product ID'},
-                    color_discrete_sequence=['#1f77b4']
+                    color=product_revenue.values,
+                    color_continuous_scale=['#1a1a2e', '#0f3460', '#667eea'],
+                    text=product_revenue.values
                 )
+                fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
                 fig.update_layout(height=400, margin=dict(l=0, r=0, t=40, b=0))
                 st.plotly_chart(fig, use_container_width=True)
             else:
@@ -281,8 +878,10 @@ if st.session_state.data_loaded and st.session_state.df is not None:
                     values=city_revenue.values,
                     names=city_revenue.index,
                     title='Top 10 Cities',
-                    color_discrete_sequence=px.colors.qualitative.Set3
+                    color_discrete_sequence=px.colors.qualitative.Set3,
+                    hole=0.3
                 )
+                fig.update_traces(textposition='inside', textinfo='percent+label')
                 fig.update_layout(height=400)
                 st.plotly_chart(fig, use_container_width=True)
             else:
@@ -294,7 +893,7 @@ if st.session_state.data_loaded and st.session_state.df is not None:
         col1, col2 = st.columns(2)
 
         with col1:
-            if 'invoice_date' in df.columns:
+            if 'invoice_date' in df.columns and len(df) > 0:
                 df['invoice_date'] = pd.to_datetime(df['invoice_date'])
                 daily_revenue = df.groupby(df['invoice_date'].dt.date)['amount'].sum().reset_index()
                 daily_revenue.columns = ['Date', 'Revenue']
@@ -304,13 +903,14 @@ if st.session_state.data_loaded and st.session_state.df is not None:
                     x='Date',
                     y='Revenue',
                     title='Daily Revenue Trend',
-                    markers=True
+                    markers=True,
+                    line_shape='spline'
                 )
-                fig.update_layout(height=400)
+                fig.update_layout(height=400, xaxis_title='Date', yaxis_title='Revenue ($)')
                 st.plotly_chart(fig, use_container_width=True)
 
         with col2:
-            if 'job' in df.columns:
+            if 'job' in df.columns and len(df) > 0:
                 job_revenue = df.groupby('job')['amount'].sum().sort_values(ascending=False).head(10)
                 fig = px.bar(
                     x=job_revenue.values,
@@ -318,7 +918,8 @@ if st.session_state.data_loaded and st.session_state.df is not None:
                     orientation='h',
                     title='Revenue by Profession',
                     labels={'x': 'Revenue ($)', 'y': 'Profession'},
-                    color_discrete_sequence=['#2ca02c']
+                    color=job_revenue.values,
+                    color_continuous_scale=['#2ca02c', '#1a1a2e']
                 )
                 fig.update_layout(height=400)
                 st.plotly_chart(fig, use_container_width=True)
@@ -349,72 +950,22 @@ if st.session_state.data_loaded and st.session_state.df is not None:
 
         # Select columns to display
         if not show_all:
-            important_cols = ['first_name', 'last_name', 'email', 'amount', 'invoice_date',
-                              'product_id', 'qty', 'city', 'job']
+            important_cols = ['customer_name', 'email', 'amount', 'invoice_date',
+                             'product_id', 'qty', 'city', 'job']
             available_cols = [col for col in important_cols if col in display_df.columns]
             display_df = display_df[available_cols]
 
         # Display dataframe
         st.dataframe(display_df, use_container_width=True, height=500)
 
-        # Export options
-        st.markdown("---")
-        st.subheader("📥 Export Data")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            csv_data = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download as CSV",
-                data=csv_data,
-                file_name=f'invoice_data_{datetime.now().strftime("%Y%m%d")}.csv',
-                mime='text/csv',
-                use_container_width=True
-            )
-
-        with col2:
-            try:
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, sheet_name='Invoices', index=False)
-                    # Add summary sheet
-                    if 'amount' in df.columns:
-                        summary = pd.DataFrame({
-                            'Metric': ['Total Revenue', 'Average Invoice', 'Total Invoices', 'Unique Customers'],
-                            'Value': [
-                                f"${df['amount'].sum():,.2f}",
-                                f"${df['amount'].mean():,.2f}",
-                                len(df),
-                                df['email'].nunique() if 'email' in df.columns else len(df)
-                            ]
-                        })
-                        summary.to_excel(writer, sheet_name='Summary', index=False)
-                excel_data = output.getvalue()
-                st.download_button(
-                    label="📥 Download as Excel",
-                    data=excel_data,
-                    file_name=f'invoice_data_{datetime.now().strftime("%Y%m%d")}.xlsx',
-                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.warning("Excel export not available")
-
     # ============================================================
-    # TAB 3: STATISTICS
+    # TAB 3: ANALYTICS
     # ============================================================
     with tab3:
-        st.header("Statistical Analysis")
+        st.header("Advanced Analytics")
 
         if 'amount' in df.columns:
-            # Summary statistics
-            st.subheader("📊 Descriptive Statistics")
-            numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-            if numeric_cols:
-                st.dataframe(df[numeric_cols].describe(), use_container_width=True)
-
-            # Revenue distribution
+            # Revenue Distribution
             st.subheader("💰 Revenue Distribution")
             fig = px.histogram(
                 df,
@@ -422,16 +973,52 @@ if st.session_state.data_loaded and st.session_state.df is not None:
                 nbins=50,
                 title='Invoice Amount Distribution',
                 labels={'amount': 'Invoice Amount ($)', 'count': 'Number of Invoices'},
-                color_discrete_sequence=['#1f77b4']
+                color_discrete_sequence=['#1a1a2e']
             )
-            fig.add_vline(x=df['amount'].mean(), line_dash="dash", line_color="red",
-                          annotation_text=f"Mean: ${df['amount'].mean():.2f}")
-            fig.add_vline(x=df['amount'].median(), line_dash="dash", line_color="green",
-                          annotation_text=f"Median: ${df['amount'].median():.2f}")
+            fig.add_vline(x=df['amount'].mean(), line_dash="dash", line_color="#e74c3c",
+                         annotation_text=f"Mean: ${df['amount'].mean():.2f}")
+            fig.add_vline(x=df['amount'].median(), line_dash="dash", line_color="#2ecc71",
+                         annotation_text=f"Median: ${df['amount'].median():.2f}")
+            fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
 
+        # Customer Analytics
+        if 'email' in df.columns:
+            st.subheader("👥 Customer Analytics")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Top 10 Customers
+                customer_spending = df.groupby('customer_name')['amount'].sum().sort_values(ascending=False).head(10)
+                fig = px.bar(
+                    x=customer_spending.values,
+                    y=customer_spending.index,
+                    orientation='h',
+                    title='Top 10 Customers by Spending',
+                    labels={'x': 'Amount ($)', 'y': 'Customer'},
+                    color=customer_spending.values,
+                    color_continuous_scale=['#1a1a2e', '#667eea']
+                )
+                fig.update_layout(height=350)
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                # Customer Order Frequency
+                order_freq = df.groupby('customer_name').size().sort_values(ascending=False).head(10)
+                fig = px.bar(
+                    x=order_freq.values,
+                    y=order_freq.index,
+                    orientation='h',
+                    title='Most Active Customers',
+                    labels={'x': 'Number of Orders', 'y': 'Customer'},
+                    color=order_freq.values,
+                    color_continuous_scale=['#1a1a2e', '#f39c12']
+                )
+                fig.update_layout(height=350)
+                st.plotly_chart(fig, use_container_width=True)
+
         # Missing values
-        st.subheader("🔍 Missing Values Analysis")
+        st.subheader("🔍 Data Quality Analysis")
         missing_data = df.isnull().sum()
         missing_data = missing_data[missing_data > 0]
 
@@ -442,93 +1029,239 @@ if st.session_state.data_loaded and st.session_state.df is not None:
                 'Missing Percentage': (missing_data.values / len(df) * 100).round(2)
             })
             st.dataframe(missing_df, use_container_width=True)
+
+            # Plot missing values
+            fig = px.bar(
+                missing_df,
+                x='Column',
+                y='Missing Percentage',
+                title='Missing Values by Column',
+                color='Missing Percentage',
+                color_continuous_scale=['#2ecc71', '#f39c12', '#e74c3c']
+            )
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.success("✅ No missing values found in the dataset!")
 
     # ============================================================
-    # TAB 4: INSIGHTS
+    # TAB 4: RECOMMENDATIONS (PROFESSIONAL VERSION)
     # ============================================================
     with tab4:
-        st.header("Business Insights")
+        st.header("💡 Professional Business Recommendations")
+        st.markdown("*Data-driven insights to optimize your business performance*")
 
-        if 'amount' in df.columns:
-            total_revenue = df['amount'].sum()
-            avg_invoice = df['amount'].mean()
-            total_invoices = len(df)
-            unique_customers = df['email'].nunique() if 'email' in df.columns else len(df)
+        # Filter options
+        col1, col2 = st.columns(2)
 
-            insights = [
-                f"💰 **Total Revenue**: ${total_revenue:,.2f} from {total_invoices:,} invoices",
-                f"📊 **Average Invoice**: ${avg_invoice:.2f}",
-                f"👥 **Customer Base**: {unique_customers:,} unique customers"
-            ]
+        with col1:
+            priority_filter = st.selectbox(
+                "Filter by Priority",
+                ["All", "High Priority", "Medium Priority", "Low Priority"]
+            )
 
-            if 'product_id' in df.columns:
-                top_product = df.groupby('product_id')['amount'].sum().idxmax()
-                top_revenue = df.groupby('product_id')['amount'].sum().max()
-                insights.append(f"🏆 **Best Product**: Product {top_product} generates ${top_revenue:,.2f}")
+        with col2:
+            categories = list(set([r['category'] for r in st.session_state.recommendations]))
+            category_filter = st.selectbox(
+                "Filter by Category",
+                ["All"] + categories
+            )
 
-            if 'city' in df.columns:
-                top_city = df.groupby('city')['amount'].sum().idxmax()
-                top_city_revenue = df.groupby('city')['amount'].sum().max()
-                insights.append(f"📍 **Top Market**: {top_city} generates ${top_city_revenue:,.2f}")
+        # Filter recommendations
+        filtered_recs = st.session_state.recommendations
+        if priority_filter != "All":
+            priority_map = {
+                "High Priority": "high",
+                "Medium Priority": "medium",
+                "Low Priority": "low"
+            }
+            filtered_recs = [r for r in filtered_recs if r['priority'] == priority_map[priority_filter]]
 
-            st.success("📌 Key Insights:")
-            for insight in insights:
-                st.markdown(f"- {insight}")
+        if category_filter != "All":
+            filtered_recs = [r for r in filtered_recs if r['category'] == category_filter]
 
+        # Display recommendations
+        if filtered_recs:
+            # Summary stats
+            high_count = len([r for r in filtered_recs if r['priority'] == 'high'])
+            medium_count = len([r for r in filtered_recs if r['priority'] == 'medium'])
+            low_count = len([r for r in filtered_recs if r['priority'] == 'low'])
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("🔴 High Priority", high_count, delta="Urgent")
+            with col2:
+                st.metric("🟡 Medium Priority", medium_count, delta="Important")
+            with col3:
+                st.metric("🟢 Low Priority", low_count, delta="Nice to have")
+
+            st.markdown("---")
+
+            for rec in filtered_recs:
+                priority_class = "rec-priority-" + rec['priority']
+                priority_label = {"high": "High", "medium": "Medium", "low": "Low"}[rec['priority']]
+                priority_badge = {"high": "priority-high", "medium": "priority-medium", "low": "priority-low"}[rec['priority']]
+
+                st.markdown(f"""
+                <div class="rec-card {priority_class}">
+                    <div class="rec-header">
+                        <div>
+                            <span class="rec-icon">{rec['icon']}</span>
+                            <span class="rec-title">{rec['title']}</span>
+                        </div>
+                        <div>
+                            <span class="priority-badge {priority_badge}">{priority_label}</span>
+                            <span class="category-tag" style="margin-left: 8px;">{rec['category']}</span>
+                        </div>
+                    </div>
+                    <div class="rec-description">{rec['description']}</div>
+                    <div class="rec-action">🎯 {rec['action']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No recommendations match your filters")
+
+        # Export recommendations
         st.markdown("---")
+        col1, col2 = st.columns(2)
 
-        # Recommendations
-        st.subheader("💡 Recommendations")
-        recommendations = [
-            "📌 **Focus on top products**: Invest marketing budget in best-selling items",
-            "📌 **Customer retention**: Implement loyalty programs for repeat customers",
-            "📌 **Geographic expansion**: Consider expanding to high-revenue cities",
-            "📌 **Seasonal planning**: Prepare inventory for peak months",
-            "📌 **Price optimization**: Review pricing strategy for products"
-        ]
-        for rec in recommendations:
-            st.markdown(f"- {rec}")
+        with col1:
+            if st.button("📥 Export Recommendations as CSV", use_container_width=True):
+                rec_df = pd.DataFrame(st.session_state.recommendations)
+                csv = rec_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download Recommendations",
+                    data=csv,
+                    file_name=f'recommendations_{datetime.now().strftime("%Y%m%d")}.csv',
+                    mime='text/csv'
+                )
+
+        with col2:
+            if st.button("📤 Print Recommendations", use_container_width=True):
+                st.write("Print this page or save as PDF for your records")
+
+    # ============================================================
+    # TAB 5: EXPORT
+    # ============================================================
+    with tab5:
+        st.header("📥 Export Results")
+
+        st.markdown("""
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 15px 0;">
+            <h4 style="margin: 0;">📋 Export Options</h4>
+            <p style="color: #666; margin: 5px 0 0 0;">Download your analysis results in various formats</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Full Data CSV
+            csv_data = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Full Data (CSV)",
+                data=csv_data,
+                file_name=f'invoice_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv',
+                mime='text/csv',
+                use_container_width=True
+            )
+
+        with col2:
+            # Full Data Excel
+            try:
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name='Invoices', index=False)
+
+                    # Summary Sheet
+                    summary = pd.DataFrame({
+                        'Metric': ['Total Revenue', 'Average Invoice', 'Total Invoices', 'Unique Customers'],
+                        'Value': [
+                            f"${df['amount'].sum():,.2f}",
+                            f"${df['amount'].mean():,.2f}",
+                            len(df),
+                            df['email'].nunique() if 'email' in df.columns else len(df)
+                        ]
+                    })
+                    summary.to_excel(writer, sheet_name='Summary', index=False)
+
+                    # Recommendations Sheet
+                    if st.session_state.recommendations:
+                        rec_df = pd.DataFrame(st.session_state.recommendations)
+                        rec_df.to_excel(writer, sheet_name='Recommendations', index=False)
+                excel_data = output.getvalue()
+                st.download_button(
+                    label="📥 Full Data (Excel)",
+                    data=excel_data,
+                    file_name=f'invoice_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.warning("Excel export requires openpyxl")
+
+        # Recommendations Only
+        if st.session_state.recommendations:
+            st.markdown("---")
+            st.subheader("📥 Export Recommendations")
+
+            rec_df = pd.DataFrame(st.session_state.recommendations)
+            rec_csv = rec_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Recommendations (CSV)",
+                data=rec_csv,
+                file_name=f'recommendations_{datetime.now().strftime("%Y%m%d")}.csv',
+                mime='text/csv',
+                use_container_width=True
+            )
 
 else:
-    # Welcome screen
-    st.info("👋 Welcome to Invoice Data Extractor!")
-
-    col1, col2, col3 = st.columns(3)
+    # Welcome Screen
+    col1, col2 = st.columns([2, 1])
 
     with col1:
         st.markdown("""
-        ### 📌 Getting Started
-        1. Upload your invoice file
-        2. Explore the dashboard
-        3. Export reports
-
-        **Supported formats:** CSV, Excel
+        ## 📊 Welcome to Professional Invoice Analyzer
+        
+        ### Get started by uploading your invoice data
+        
+        **What you can do:**
+        - 📈 **Analyze** revenue trends and patterns
+        - 🏷️ **Track** product and customer performance
+        - 💡 **Get** AI-powered business recommendations
+        - 📊 **Visualize** data with interactive charts
+        - 📥 **Export** professional reports
+        
+        ### How it works:
+        1. Upload your CSV/Excel file
+        2. Explore interactive dashboard
+        3. Get actionable recommendations
+        4. Download professional reports
         """)
 
     with col2:
         st.markdown("""
-        ### 📊 Features
-        - Interactive dashboard
-        - Revenue analytics
-        - Customer insights
-        - Export to Excel/CSV
-        """)
-
-    with col3:
-        st.markdown("""
-        ### 📁 Sample Data
-        Click "Load Sample Data" 
-        to try the app with 
-        example invoices
-        """)
+        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08);">
+            <h4>🚀 Key Features</h4>
+            <ul style="list-style: none; padding: 0;">
+                <li>✅ <b>Revenue Analytics</b><br>Track sales performance</li>
+                <li>✅ <b>Product Insights</b><br>Best and worst performers</li>
+                <li>✅ <b>Customer Analysis</b><br>Segmentation & retention</li>
+                <li>✅ <b>Smart Recommendations</b><br>AI-powered insights</li>
+                <li>✅ <b>Professional Reports</b><br>Export to CSV/Excel</li>
+            </ul>
+            <div style="margin-top: 15px; padding: 10px; background: #f0f4ff; border-radius: 8px; text-align: center;">
+                <span style="font-size: 12px; color: #1a1a2e;">Created by Tahir Mahmood © 2026</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ============================================================
 # FOOTER
 # ============================================================
 st.markdown("---")
-st.markdown(
-    "<p style='text-align: center; color: gray;'>Invoice Data Extractor | Created by Tahir Mahmood | © 2026</p>",
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div style="text-align: center; color: #999; font-size: 12px; padding: 20px 0;">
+    <b>Professional Invoice Analyzer v3.0</b> | Created by Tahir Mahmood | © 2026
+    <br>Built with ❤️ using Streamlit, Python & Data Science
+</div>
+""", unsafe_allow_html=True)
